@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>p20 · 사주 명리</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <header>
+    <h1>사주 명리 <span class="mini">미니앱</span></h1>
+    <p class="tag">p20 · p21 Destiny Duo · p6 Voice • FULL CHEAT PSYCH</p>
+    <div class="fomo" id="fomo">오늘 무료 1회 남음</div>
+    <div id="fateWindows" style="font-size:0.7rem;margin:6px 0;color:#c99"></div>
+    <div id="limitedBanner" style="display:none;background:#3a1a1a;color:#f99;padding:4px 8px;border:1px solid #c66;border-radius:4px;font-size:0.7rem;margin:4px auto;width:fit-content">🌑 LIMITED ECLIPSE FATE BANNER — 1/ today • FOMO • ends soon (fictional)</div>
+  </header>
+
+  <main>
+    <section id="input">
+      <h2>생년월일 입력</h2>
+      <div class="form">
+        <input type="date" id="birth" value="1990-01-01">
+        <input type="time" id="time" value="12:00">
+        <select id="gender"><option value="m">남</option><option value="f">여</option></select>
+        <button onclick="generateSaju()">사주 차트 생성</button>
+      </div>
+    </section>
+
+    <section id="chart" style="display:none">
+      <h2>사주 팔자</h2>
+      <div id="pillars" class="pillars"></div>
+      <canvas id="saju-canvas" width="300" height="140" style="border:1px solid #3a3124;border-radius:4px;margin:6px 0"></canvas>
+      <div id="elements"></div>
+      <button onclick="doReading()">오늘의 운세 보기</button>
+      <button onclick="voiceReading()">🎤 p6 음성으로 듣기</button>
+      <button onclick="unlockPremium()">p10 프리미엄 상세 (Credits)</button>
+    </section>
+
+    <section id="reading" style="display:none">
+      <h2>운세 결과</h2>
+      <div id="readingText" class="card"></div>
+      <div class="surprise" id="surprise"></div>
+      <button onclick="fateShare()" class="share-btn" style="background:#3a2f22;color:#f5f1e6;border:1px solid #c5a46e;">🌌 Fate Share — Destiny Duo (p20+p21 Codex Relic + Story)</button>
+      <div style="font-size:0.65rem;opacity:0.65;margin-top:6px">FICTIONAL SIMULATION • VARIABLE RATIO • NEAR-MISS • PITY • ENDOWMENT RELIC • NO REAL FATE</div>
+    </section>
+
+    <section id="codex">
+      <h2>Fate Codex — MY PERSONAL RELICS (p20+p21 공유 • ENDOWMENT)</h2>
+      <div id="codexList"></div>
+      <button onclick="showCodex()">Codex 새로고침 (re-observe compounds power)</button>
+      <button onclick="fateShare(true)" style="background:#3a2f22;color:#f5f1e6;border:1px solid #c5a46e;margin-top:4px;">📤 Export Top Relic as Fate Story (UGC Share)</button>
+      <div style="font-size:0.65rem;opacity:0.6">Click relic to strengthen. All fictional. Prominent: 100% disclosure. Entertainment only.</div>
+    </section>
+
+    <nav class="cross">
+      <a href="../p21-tarot-app/index.html">→ p21 타로 (연동)</a>
+    </nav>
+  </main>
+
+  <footer>
+    <small>Entertainment only. AI fictional readings. Prominent disclosure.</small>
+  </footer>
+
+  <script src="lung-surprise-eye.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

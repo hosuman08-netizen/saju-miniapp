@@ -1,0 +1,26 @@
+:root {
+  --bg:#0a0806; --gold:#c5a46e; --card:#12100d; --text:#f5f1e6; --dim:#8b6f47;
+  --grid:8px;
+  /* Vitruvian + SENSE: 60/30/10 + golden 0.618 */
+}
+body { background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, sans-serif; margin:0; padding:var(--grid); line-height:1.58; }
+header { text-align:center; margin-bottom:calc(var(--grid)*2.5); }
+h1 { font-size:2.1rem; margin:0; color:var(--gold); letter-spacing:-0.6px; } /* one protagonist */
+.mini { font-size:0.58em; opacity:0.6; }
+.tag { font-size:0.78rem; color:#a38a66; }
+.fomo { background:#15120f; padding:4px 12px; border-radius:999px; display:inline-block; font-size:0.72rem; margin-top:var(--grid); border:1px solid var(--gold); }
+.pillars { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--grid); margin:calc(var(--grid)*1.5) 0; }
+.pillar { background:#15120f; padding:calc(var(--grid)*0.75); border-radius:6px; text-align:center; border:1px solid #3a2f22; } /* restraint */
+.card { background:#12100d; padding:calc(var(--grid)*1.5); border-radius:10px; border:1px solid #3a2f22; margin:calc(var(--grid)*1.5) 0; }
+button { background:#c5a46e; color:#0a0806; border:none; padding:9px 15px; border-radius:5px; margin:4px; font-weight:600; font-size:0.9rem; cursor:pointer; transition:transform 80ms ease; }
+button:hover { filter:brightness(1.05); transform:translateY(-0.5px); }
+.form input,select { padding:calc(var(--grid)*0.75); margin:3px; background:#111; color:#ddd; border:1px solid #3a2f22; border-radius:5px; }
+.cross { margin-top:calc(var(--grid)*3.5); text-align:center; }
+footer { margin-top:calc(var(--grid)*4); text-align:center; font-size:0.64rem; opacity:0.58; }
+.surprise { font-size:0.82rem; color:#c5a46e; margin-top:var(--grid); }
+#fateWindows .win { display:inline-block; margin:1px 4px; padding:1px 6px; border-radius:3px; font-size:0.68rem; }
+#fateWindows .open { background:#1f1910; border:1px solid #c5a46e; }
+.relic { border-color:#a38a66; background:#15120f; }
+/* Golden proportion container restraint */
+main { max-width:618px; margin:0 auto; } /* Vitruvian 0.618 base */
+#saju-canvas { width:100%; max-width:100%; height:auto; border:1px solid #3a2f22; border-radius:6px; background:#0a0806; }
