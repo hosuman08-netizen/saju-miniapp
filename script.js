@@ -257,11 +257,14 @@ function triggerLimitedBanner() {
 
 // p21 cross note + shared boost
 function initP21Link() {
-  const hasP21 = localStorage.getItem(CODEX_KEY);
-  if (hasP21) console.log('%c[p20] p21 codex detected — cross boost ready', 'color:#c9a');
-  // cross fate index from p21
-  const p21Data = JSON.parse(localStorage.getItem('fateCodex') || '[]');
-  if (p21Data.length > 1) baseLuck = Math.min(1.18, baseLuck + 0.06);
+  // Fix: detect the actual p21 app via a p21-EXCLUSIVE key (tarotLuck), not the
+  // shared 'fateCodex' key — which p20 also writes, so the old check self-triggered
+  // on p20's own history (fabricated cross signal). Boost now only when p21 truly played.
+  const p21Played = localStorage.getItem('tarotLuck') !== null || localStorage.getItem('tarotPity') !== null;
+  if (p21Played) {
+    console.log('%c[p20] p21 tarot detected — real cross boost applied', 'color:#c9a');
+    baseLuck = Math.min(1.18, baseLuck + 0.06);
+  }
 }
 
 // === RECOMMENDED ACTIONS IMPLEMENTED (full agent meeting synthesis) ===
@@ -271,7 +274,14 @@ function mutateFromTarot(tarotScore, res) {
   s.fused = Math.min(99, (s.fused||70) + Math.floor((tarotScore-70)*0.38));
   s.luck = Math.min(1.45, (s.luck||1)+0.09);
   localStorage.setItem('sajuState', JSON.stringify(s));
-  if (res>0.8 && window.p6LungSurpriseEye) window.p6LungSurpriseEye(res);
+  // Fix: call lung eye with the real signature (ctx,w,cy,lung,amp,spore,ache),
+  // not a bare number (which the guard silently no-op'd). Now duo-fusion actually renders on the wheel.
+  const c = document.getElementById('saju-canvas');
+  if (res > 0.8 && c && window.p6LungSurpriseEye) {
+    const ctx = c.getContext('2d');
+    const lung = JSON.parse(localStorage.getItem('p6_lungFragment')||'{"breath":0.6}');
+    window.p6LungSurpriseEye(ctx, c.width, c.height*0.58, lung, Math.min(1, res), {wound: 0.5 + s.fused*0.003}, 0.3);
+  }
   if (s.fused > 86) recordToCodex('duo-birth', 'Destiny Spore (p21->p20)', s.fused);
 }
 window.mutateFromTarot = mutateFromTarot;
