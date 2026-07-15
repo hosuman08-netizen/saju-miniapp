@@ -12,8 +12,16 @@ h1 { font-size:2.1rem; margin:0; color:var(--gold); letter-spacing:-0.6px; } /* 
 .pillars { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--grid); margin:calc(var(--grid)*1.5) 0; }
 .pillar { background:#15120f; padding:calc(var(--grid)*0.75); border-radius:6px; text-align:center; border:1px solid #3a2f22; } /* restraint */
 .card { background:#12100d; padding:calc(var(--grid)*1.5); border-radius:10px; border:1px solid #3a2f22; margin:calc(var(--grid)*1.5) 0; }
-button { background:#c5a46e; color:#0a0806; border:none; padding:9px 15px; border-radius:5px; margin:4px; font-weight:600; font-size:0.9rem; cursor:pointer; transition:transform 80ms ease; }
-button:hover { filter:brightness(1.05); transform:translateY(-0.5px); }
+button { background:#c5a46e; color:#0a0806; border:none; padding:9px 15px; border-radius:5px; margin:4px; font-weight:600; font-size:0.9rem; cursor:pointer; transition:transform 120ms ease, filter 120ms ease; }
+button:hover { filter:brightness(1.05); transform:translateY(-1px); }
+button:active { transform:translateY(0); filter:brightness(0.96); }
+/* SENSE: one protagonist CTA (solid gold) — everything else quiet ghost */
+button.secondary { background:transparent; color:var(--gold); border:1px solid #3a2f22; font-weight:500; }
+button.secondary:hover { border-color:var(--gold); filter:none; }
+/* Primary action gets a subtle golden breath so the eye lands there first */
+.primary-cta { box-shadow:0 0 0 0 rgba(197,164,110,0.5); animation:cta-breath 3.2s ease-in-out infinite; }
+@keyframes cta-breath { 0%,100%{ box-shadow:0 0 0 0 rgba(197,164,110,0.28); } 50%{ box-shadow:0 0 14px 1px rgba(197,164,110,0.22); } }
+@media (prefers-reduced-motion: reduce) { .primary-cta { animation:none; } }
 .form input,select { padding:calc(var(--grid)*0.75); margin:3px; background:#111; color:#ddd; border:1px solid #3a2f22; border-radius:5px; }
 .cross { margin-top:calc(var(--grid)*3.5); text-align:center; }
 footer { margin-top:calc(var(--grid)*4); text-align:center; font-size:0.64rem; opacity:0.58; }
