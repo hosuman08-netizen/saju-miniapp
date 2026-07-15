@@ -32,3 +32,25 @@ footer { margin-top:calc(var(--grid)*4); text-align:center; font-size:0.64rem; o
 /* Golden proportion container restraint */
 main { max-width:618px; margin:0 auto; } /* Vitruvian 0.618 base */
 #saju-canvas { width:100%; max-width:100%; height:auto; border:1px solid #3a2f22; border-radius:6px; background:#0a0806; }
+
+/* === REAL SAJU chart cells (천간지지 상세) === */
+.pillar b { display:block; font-size:0.7rem; color:var(--dim); margin-bottom:2px; }
+.pillar .p-gz { font-size:1.15rem; font-weight:700; color:var(--text); letter-spacing:1px; }
+.pillar .p-hanja { font-size:0.66rem; color:#8b6f47; }
+.pillar .p-el { font-size:0.68rem; margin-top:2px; font-weight:600; }
+/* 해석 블록 */
+.reading-block { line-height:1.62; }
+.dm-line { font-size:0.92rem; margin-bottom:6px; }
+.dm-line .dm { color:var(--gold); font-size:1.05rem; }
+.trait { font-size:0.84rem; color:#d8cdb8; margin:4px 0 10px; }
+.analysis { font-size:0.82rem; margin:6px 0; color:#e5dcc9; }
+.analysis.small { font-size:0.74rem; color:#b3a488; }
+/* 오행 분포 막대 */
+.el-chart { margin:10px 0; }
+.el-row { display:flex; align-items:center; gap:8px; margin:3px 0; }
+.el-name { width:44px; font-size:0.76rem; font-weight:600; flex-shrink:0; }
+.el-bar { flex:1; height:9px; background:#1c1712; border-radius:999px; overflow:hidden; }
+.el-bar i { display:block; height:100%; border-radius:999px; transition:width 500ms ease; min-width:2px; }
+/* 오늘 일진 라벨 */
+.today-rel { color:var(--gold); font-size:0.86rem; }
+.aligned { color:#5aa469; font-size:0.72rem; }
