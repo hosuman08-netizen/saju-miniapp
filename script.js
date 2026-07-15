@@ -362,7 +362,9 @@ function recordToCodex(type, text, score, extra={}) {
   let codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
   const relicPower = Math.floor((score||70) * (0.6 + (LilithPsych.resonance||0.5)));
   const entry = {
-    ts: new Date().toISOString(),
+    // 로컬 시각 기준 ISO 유사 문자열(YYYY-MM-DDTHH:mm) — UTC toISOString은 KST에서 날짜가 하루 어긋나 기록 날짜가 틀리게 표시됨
+    ts: (() => { const d = new Date(); const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; })(),
     type,
     text: text.slice(0,118),
     score: Math.min(99,score||70),
@@ -562,10 +564,12 @@ function birthFateSpore() {
 }
 
 function addCrossNavP20() {
-  const nav = document.createElement('div');
-  nav.style.marginTop='12px';
-  nav.innerHTML = `<button onclick="window.open('../p21-tarot-app/index.html','_blank')">🔮 타로도 보기</button>`;
-  document.body.appendChild(nav);
+  // 타로 앱(p21)이 이 배포에 존재하지 않아 죽은 버튼(404)이 되므로 노출하지 않음.
+  // 타로 앱 배포 시 아래 주석을 되살리면 복구됨.
+  // const nav = document.createElement('div');
+  // nav.style.marginTop='12px';
+  // nav.innerHTML = `<button onclick="window.open('../p21-tarot-app/index.html','_blank')">🔮 타로도 보기</button>`;
+  // document.body.appendChild(nav);
 }
 
 function startRealFomoTimer() {
