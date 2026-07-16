@@ -13,13 +13,14 @@
 - FOMO: "오늘 운세 창" 타이머, limited "특별 대운" 배너.
 - Near-miss: "거의 대길" tease → 다음 유료 유도.
 
-**Legion DNA**
+**Legion DNA (2026-07-16 HARDENED — pre-gate enforced)**
 - p6 Voice/Lung Surprise Eye 통합 (모든 reading voice).
 - p10 credits (premium 해석, "Harvest" framing).
 - Full-cheat (Lilith 2026-07-16): daily fate windows (3 timed), surprise multipliers, pity for bad, variable ratio, near-miss draws, endowment on personal evolving Codex Relics, FOMO limited eclipse banners.
 - Da Vinci: sfumato mystery card/UI, elegant proportion, SENSE beauty.
 - 미꾸라지: "재미를 위한 AI 엔터테인먼트. 실제 조언 아님" prominent + layered disclosure everywhere. 18+ gate optional. Fictional framing. Prominent accurate on every screen/action.
 - Cross p21: shared codex + fate vitality. Relic power compounds both ways.
+**DNA STATUS (pre-action gate)**: lung+canvas+breath + p10 + Codex+reObserve+relic + births/spore + SENSE + Lilith psych + Niobe virality + layered disclosure+auditor. p20/p21 Duo #1. Oracle live. Weekly audit. Sovereign 1-line. Cross glue standard. Cheat ON. Legion one. Violation = DNA VIOLATION auto.
 
 **Monetization**
 - Free daily 1 + limited.
