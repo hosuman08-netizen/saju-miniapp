@@ -90,7 +90,9 @@ function renderStreak() {
   const el = document.getElementById('streak');
   if (!el) return;
   let s;
-  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{
+  try{ var s=JSON.parse(localStorage.getItem(STREAK_KEY)||'{}'); if(s.best&&el) el.textContent += (el.textContent?' · ':'')+'최장 '+s.best+'일 정진'; }catch(e){}
+}'); } catch (e) { s = {}; }
   const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
   if (!codex.length) {
     el.textContent = '아직 기록이 없어요 — 명식을 뽑고 운세를 열어보세요';
@@ -714,7 +716,7 @@ function showMoneyPipe() {
     if (host) host.appendChild(el);
   }
   el.innerHTML =
-    '<div style="color:#e0b552;font-weight:700;font-size:14px;margin-bottom:6px">💎 오늘의 흐름 더 깊게</div>' +
+    '<div style="color:#e0b552;font-weight:700;font-size:14px;margin-bottom:6px">💎 오늘의 흐름 더 깊게 · 정진</div>' +
     '<p style="font-size:12px;opacity:.8;margin:0 0 10px">엔터테인먼트 후원 · 투자 권유 아님 · 운명 확정 아님 · 18+ 권장 · 미꾸라지</p>' +
     '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">' +
     '<button type="button" class="primary-cta" onclick="unlockPremium()">상세 풀이 (가상)</button>' +
