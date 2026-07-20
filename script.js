@@ -44,7 +44,7 @@ function updateFomo() {
   const today = new Date().toDateString();
   const saved = localStorage.getItem('sajuFomo');
   if (saved !== today) { freeLeft = 1; localStorage.setItem('sajuFomo', today); pityStreak = 0; localStorage.setItem('sajuPity', '0'); }
-  el.textContent = freeLeft > 0 ? `오늘 무료 ${freeLeft}회 남음 • base ${ (baseLuck*100|0) }%` : '오늘 무료 소진 (프리미엄 추천)';
+  el.textContent = freeLeft > 0 ? `오늘 무료 ${freeLeft}회 남음 • 기운 ${ (baseLuck*100|0) }%` : '오늘 무료 소진 (프리미엄 추천)';
   updateFateWindows();
 }
 
@@ -63,7 +63,7 @@ function updateFateWindows() {
   windows.forEach(w => {
     const open = h >= w.start && h < w.end;
     const closeIn = open ? Math.max(1, Math.floor(w.end - h)) : 0;
-    html += `<span class="win ${open?'open':'closed'}">${w.label} ${open ? `⏱ ${closeIn}h left — NOW` : 'closed'}</span> `;
+    html += `<span class="win ${open?'open':'closed'}">${w.label} ${open ? `⏱ ${closeIn}시간 남음 · 열림` : '닫힘'}</span> `;
   });
   wEl.innerHTML = html + ' <small style="opacity:.6">(fictional windows • prominent disclosure)</small>';
 }
@@ -472,10 +472,12 @@ function showCodex() {
   const list = document.getElementById('codexList');
   const codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
   if (!codex.length) { list.innerHTML = '<div class="card">아직 기록이 없어요 — 운세를 보면 여기에 쌓입니다.</div>'; return; }
+  const TYPE_LABEL = { 'saju':'사주', 'saju-premium':'상세 풀이', '타로융합':'타로융합' };
   list.innerHTML = codex.map((c,i) => {
     const lv = c.relicLevel || 1;
     const pow = c.power || c.score;
-    return `<div class="card relic" data-idx="${i}">🜁 ${c.ts.slice(5,10)} [${c.type}] ${c.text}<br><small>기록 Lv.${lv} • 기운 ${pow} • x${(c.multi||1).toFixed(1)} — <b>눌러서 기록 강화</b></small></div>`;
+    const label = TYPE_LABEL[c.type] || c.type;
+    return `<div class="card relic" data-idx="${i}">🜁 ${c.ts.slice(5,10)} · ${label} · ${c.text}<br><small>기록 Lv.${lv} • 기운 ${pow} • x${(c.multi||1).toFixed(1)} — <b>눌러서 기록 강화</b></small></div>`;
   }).join('');
   // Re-observe Codex that mutates UI (births) — one protagonist + sfumato + lung
   list.onclick = (e) => {
