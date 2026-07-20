@@ -26,7 +26,7 @@
   <header>
     <h1>사주 명리</h1>
     <p class="tag">태어난 순간의 여덟 글자, 그 안의 흐름을 읽다</p>
-    <div class="fomo" id="fomo">오늘 무료 1회 남음</div>
+    <div class="fomo" id="fomo"><span id="fomoClock"></span> · 오늘 무료 1회 남음</div>
     <p class="streak" id="streak" aria-live="polite"></p>
     <div id="fateWindows" class="fate-windows"></div>
     <div id="limitedBanner" class="limited-banner">🌑 흑월 운세 — 오늘 한정 (가상)</div>
@@ -173,5 +173,7 @@
 <script>window.LEGION_APP='saju-miniapp';window.LEGION_ANALYTICS_URL='https://legion-analytics.hoyashi95.workers.dev';</script>
 <script src="legion-beacon.js"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(function(){});}</script>
-</body>
+<script>
+(function(){function tick(){var e=new Date();e.setHours(24,0,0,0);var ms=e-Date.now();if(ms<0)ms=0;var h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4);var el=document.getElementById('fomoClock');if(el)el.textContent='오늘창 '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}tick();setInterval(tick,3e4);})();
+</script></body>
 </html>
