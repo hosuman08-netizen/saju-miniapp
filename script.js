@@ -715,7 +715,7 @@ function showMoneyPipe() {
   }
   el.innerHTML =
     '<div style="color:#e0b552;font-weight:700;font-size:14px;margin-bottom:6px">💎 오늘의 흐름 더 깊게</div>' +
-    '<p style="font-size:12px;opacity:.8;margin:0 0 10px">엔터테인먼트 후원 · 투자/운명 확정 아님 · 18+ 권장</p>' +
+    '<p style="font-size:12px;opacity:.8;margin:0 0 10px">엔터테인먼트 후원 · 투자 권유 아님 · 운명 확정 아님 · 18+ 권장 · 미꾸라지</p>' +
     '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">' +
     '<button type="button" class="primary-cta" onclick="unlockPremium()">상세 풀이 (가상)</button>' +
     '<a class="secondary" style="display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #666;text-decoration:none;color:inherit" href="mailto:hoyashi95@gmail.com?subject=%5B%EC%82%AC%EC%A3%BC%5D%20%ED%9B%84%EC%9B%90%2F%EA%B8%B0%ED%9A%8D">☕ 커피 후원 문의</a>' +
