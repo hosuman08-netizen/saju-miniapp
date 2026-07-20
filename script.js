@@ -945,14 +945,26 @@ function showCodex() {
     return;
   }
   const TYPE_LABEL = { 'saju':'사주', 'saju-premium':'상세 풀이', '타로융합':'타로융합' };
-  list.innerHTML = codex.map((c,i) => {
+  list.innerHTML = '<div style="margin-bottom:8px"><button type="button" id="sajuDelLast" class="secondary" style="padding:4px 10px;font-size:12px">↩ 최근 기록 1건 삭제</button></div>'
+    + codex.map((c,i) => {
     const lv = c.relicLevel || 1;
     const pow = c.power || c.score;
     const label = TYPE_LABEL[c.type] || c.type;
     return `<div class="card relic" data-idx="${i}">🜁 ${c.ts.slice(5,10)} · ${label} · ${c.text}<br><small>기록 Lv.${lv} • 기운 ${pow} • x${(c.multi||1).toFixed(1)} — <b>눌러서 기록 강화</b></small></div>`;
   }).join('');
+  const delBtn = document.getElementById('sajuDelLast');
+  if (delBtn) delBtn.onclick = function (ev) {
+    ev.stopPropagation();
+    try {
+      const next = codex.slice(1);
+      localStorage.setItem(CODEX_KEY, JSON.stringify(next));
+      showCodex();
+      if (window.legionTrack) legionTrack('undo', { what: 'codex' });
+    } catch (e) {}
+  };
   // Re-observe Codex that mutates UI (births) — one protagonist + sfumato + lung
   list.onclick = (e) => {
+    if (e.target && e.target.id === 'sajuDelLast') return;
     const el = e.target.closest('.relic'); if (!el) return;
     const idx = parseInt(el.dataset.idx || '0');
     reObserveCodex(idx);
