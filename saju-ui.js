@@ -468,6 +468,7 @@
 
   /* ================= 공유 카드 (이미지 1장) ================= */
   function shareCard(mode) {
+    try{var _sr=+(localStorage.getItem('saju_reads')||0)+1;localStorage.setItem('saju_reads',_sr);}catch(e){}
     if (!STATE.chart) { toast('먼저 명식을 뽑아 주세요'); return; }
     var W = 1080, H = 1350;
     var cv = document.createElement('canvas');
