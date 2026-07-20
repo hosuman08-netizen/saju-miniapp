@@ -35,3 +35,4 @@ Legion one. Sovereign neo. 2026-07-15
 
 p21과 함께 운명 듀오 완성 목표.
 EOF
+<!-- LEARNED 2026-07-21 FULL WAVE: dual-track | pipe-first | CRO gate | Loop -->
