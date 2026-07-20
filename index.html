@@ -34,6 +34,7 @@
 
   <main>
     <section id="input">
+      <div id="inviteBanner" class="invite-banner" hidden></div>
       <h2>생년월일시 입력</h2>
       <div class="input-summary" id="inputSummary" onclick="SajuUI.editInput()" role="button" tabindex="0">
         <span id="summaryText"></span><span class="edit-link">수정</span>
@@ -121,6 +122,8 @@
             <select id="pGender"><option value="f">여</option><option value="m">남</option></select>
           </div>
           <button onclick="SajuUI.matchRun()" class="primary-cta wide">궁합 보기</button>
+          <button onclick="SajuUI.invite()" class="secondary wide" style="margin-top:8px">💌 상대에게 궁합 초대 링크 보내기</button>
+          <p class="note" style="margin-top:6px">링크를 받은 상대가 자기 생년월일만 넣으면 두 사람 궁합이 바로 계산됩니다. 상대 정보를 몰라도 됩니다.</p>
         </div>
         <div id="gunghapBody"></div>
       </div>
@@ -132,6 +135,8 @@
       <h2>운세 결과</h2>
       <div id="readingText" class="card"></div>
       <div class="surprise" id="surprise"></div>
+      <div id="domainFortune" class="domain-fortune"></div>
+      <div id="luckyItems" class="lucky-items"></div>
       <div class="share-row">
         <button onclick="SajuUI.shareCard()" class="primary-cta">🖼️ 카드로 저장·공유</button>
         <button onclick="shareResult()" class="secondary">📤 링크 복사</button>

@@ -69,7 +69,7 @@
     var du = SP.daeun(chart, gender, 10);
 
     STATE.chart = chart; STATE.full = full; STATE.anal = anal; STATE.daeun = du;
-    STATE.gender = gender; STATE.input = { birth: birth, time: time, timeUnknown: timeUnknown };
+    STATE.gender = gender; STATE.input = { birth: birth, time: time, timeUnknown: timeUnknown, lon: lon, ja: ja };
 
     // 최근 프로필 루프 (원탭 재조회)
     try {
@@ -466,6 +466,13 @@
     var ymd = b.split('-').map(Number), hm = t.split(':').map(Number);
     var lon = parseFloat($('city').value);
     var other = SP.computePro(ymd[0], ymd[1], ymd[2], hm[0], hm[1], { lon: lon, ja: $('jaSchool').value });
+    renderMatch(other, {});
+    if (window.legionTrack) window.legionTrack('activate', { feature: 'gunghap' });
+  }
+
+  // 궁합 결과 렌더 (matchRun + 초대 수락 공용)
+  function renderMatch(other, opts) {
+    opts = opts || {};
     var r = SP.compatibility(STATE.chart, other);
     STATE.match = { other: other, res: r };
 
@@ -486,17 +493,94 @@
         '<p>' + esc(i.text) + '</p></div>';
     }).join('');
 
+    var acceptHead = opts.fromInvite
+      ? '<div class="invite-accepted">💌 ' + (opts.nick ? esc(opts.nick) + '님이' : (other.zodiac + '띠 상대가')) +
+        ' 보낸 궁합 초대 — 두 사람의 결과입니다</div>'
+      : '';
+    var tailBtns = opts.fromInvite
+      ? '<div class="btn-row"><button onclick="SajuUI.shareCard(\'match\')" class="primary-cta">🖼️ 궁합 카드 저장</button>' +
+        '<button onclick="SajuUI.invite()" class="secondary">💌 나도 초대 보내기</button></div>'
+      : '<div class="btn-row"><button onclick="SajuUI.shareCard(\'match\')" class="primary-cta">🖼️ 궁합 카드 저장·공유</button></div>';
+
     $('gunghapBody').innerHTML =
-      '<div class="card">' +
+      '<div class="card">' + acceptHead +
       '<div class="match-score"><div class="ms-num">' + r.score + '</div><div class="ms-grade">' + r.grade + '</div></div>' +
       '<div class="mini-row">' + mini(STATE.chart, '나') + '<span class="mini-amp">×</span>' + mini(other, '상대') + '</div>' +
       '<div class="mi-list">' + items + '</div>' +
       '<p class="note">점수는 위 네 항목의 가중 합(기준 50에서 가감)입니다. 항목과 가중치를 그대로 공개하니 근거를 직접 보실 수 있습니다.</p>' +
-      '<div class="btn-row"><button onclick="SajuUI.shareCard(\'match\')" class="primary-cta">🖼️ 궁합 카드 저장·공유</button></div>' +
+      tailBtns +
       '</div>';
-    // 워커 ALLOWED에 있는 이벤트명만 사용 (미허용 타입은 전량 폐기됨)
-    if (window.legionTrack) window.legionTrack('activate', { feature: 'gunghap' });
     $('gunghapBody').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* ===== 궁합 초대 → 수락 바이럴 루프 ===== */
+  function activateTab(id) {
+    var btn = document.querySelector('.tab[data-tab="' + id + '"]');
+    if (btn) btn.click();
+  }
+  // 내 사주를 링크에 담아 상대에게 보냄 (클라 단독, 되돌림 가능)
+  function invite() {
+    if (!STATE.chart) { toast('먼저 내 명식을 뽑아 주세요'); return; }
+    var i = STATE.input || {};
+    var nick = localStorage.getItem('saju_nick') || '';
+    var payload = { b: i.birth, t: i.timeUnknown ? '' : i.time, g: STATE.gender, j: i.ja, l: i.lon, n: nick };
+    var enc;
+    try { enc = btoa(unescape(encodeURIComponent(JSON.stringify(payload)))); }
+    catch (e) { toast('링크를 만들지 못했습니다'); return; }
+    var url = location.origin + location.pathname + '?saju_invite=' + encodeURIComponent(enc);
+    var msg = '나랑 궁합 봐줄래? 네 생년월일만 넣으면 바로 결과 나와 (사주 명리 · 재미로)';
+    if (window.legionTrack) try { legionTrack('activate', { feature: 'invite_created' }); } catch (e) {}
+    if (navigator.share) {
+      navigator.share({ title: '사주 궁합 초대', text: msg, url: url }).catch(function () { copyInvite(url); });
+    } else { copyInvite(url); }
+  }
+  function copyInvite(url) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () { toast('초대 링크를 복사했어요 — 상대에게 붙여넣어 보내세요'); },
+        function () { window.prompt('아래 링크를 복사해 상대에게 보내세요', url); });
+    } else { window.prompt('아래 링크를 복사해 상대에게 보내세요', url); }
+  }
+  // 링크로 들어온 사람에게 배너 표시
+  function checkInvite() {
+    try {
+      var raw = new URLSearchParams(location.search || '').get('saju_invite');
+      if (!raw) return;
+      var payload = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(raw)))));
+      if (!payload || !payload.b) return;
+      STATE.pendingInvite = payload;
+      var ban = $('inviteBanner');
+      var who = payload.n ? esc(payload.n) + '님' : '누군가';
+      try {
+        var ymd = payload.b.split('-').map(Number);
+        var ic = SP.computePro(ymd[0], ymd[1], ymd[2], 12, 0, { lon: payload.l, ja: payload.j });
+        who = payload.n ? esc(payload.n) + '님' : (ic.zodiac + '띠 · 일간 ' + ic.dayMaster + ' 상대');
+      } catch (e) {}
+      if (ban) {
+        ban.hidden = false;
+        ban.innerHTML = '💌 <b>' + who + '</b>이(가) 당신과의 궁합을 기다려요.<br>' +
+          '<span class="ib-sub">위에서 당신의 생년월일시를 넣고 <b>명식 뽑기</b>를 누르면 두 사람 궁합이 바로 나옵니다.</span>';
+      }
+      var hdr = document.querySelector('header .tag');
+      if (hdr) hdr.textContent = '궁합 초대가 도착했어요 — 내 사주부터 뽑아보세요';
+      // 궁합 탭 힌트: 입력 영역으로 스크롤
+      var inp = $('input'); if (inp) inp.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (window.legionTrack) try { legionTrack('k_link', { from: 'invite' }); } catch (e) {}
+    } catch (e) {}
+  }
+  // 수락자가 자기 명식을 뽑은 뒤 자동 궁합 계산
+  function acceptInvite() {
+    var p = STATE.pendingInvite;
+    if (!p || !STATE.chart) return;
+    try {
+      var ymd = p.b.split('-').map(Number);
+      var hm = (p.t || '12:00').split(':').map(Number);
+      var inviter = SP.computePro(ymd[0], ymd[1], ymd[2], hm[0], hm[1], { lon: p.l, ja: p.j, timeKnown: !!p.t });
+      activateTab('t-gunghap');
+      renderMatch(inviter, { fromInvite: true, nick: p.n });
+      var ban = $('inviteBanner'); if (ban) ban.hidden = true;
+      if (window.legionTrack) try { legionTrack('activate', { feature: 'invite_accepted' }); } catch (e) {}
+    } catch (e) {}
+    STATE.pendingInvite = null; // 1회 소비
   }
 
   /* ================= 공유 카드 (이미지 1장) ================= */
@@ -740,13 +824,13 @@
     } catch (e) {}
   }
 
-  // boot recent after DOM
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderRecent);
-  else setTimeout(renderRecent, 0);
-  // re-render after generate
+  // boot recent + 초대 링크 감지 after DOM
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { renderRecent(); checkInvite(); });
+  else { setTimeout(renderRecent, 0); setTimeout(checkInvite, 0); }
+  // re-render after generate + 초대 수락 시 자동 궁합
   var _gen = generate;
-  generate = function () { _gen(); setTimeout(renderRecent, 50); };
+  generate = function () { _gen(); setTimeout(renderRecent, 50); setTimeout(acceptInvite, 60); };
 
-  window.SajuUI = { generate: generate, matchRun: matchRun, shareCard: shareCard, editInput: editInput, toast: toast, state: STATE, renderRecent: renderRecent };
+  window.SajuUI = { generate: generate, matchRun: matchRun, shareCard: shareCard, editInput: editInput, toast: toast, state: STATE, renderRecent: renderRecent, invite: invite };
   window.generateSaju = generate;   // 기존 진입점 호환
 })();

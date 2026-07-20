@@ -312,3 +312,32 @@ table.basis tr:last-child th, table.basis tr:last-child td { border-bottom:none;
 /* 십이운성 라벨이 두 글자 사이에서 줄바꿈되지 않도록 */
 .stage-row b, .stage-row .hanja-sm, .stage-row .sl { white-space:nowrap; }
 .stage-row { flex-wrap:wrap; }
+
+/* ===== 세분화 일일 운세 (영역별) ===== */
+.domain-fortune { margin-top:calc(var(--grid)*1.5); }
+.dom-card { background:var(--card); border:1px solid #2a2318; border-radius:12px; padding:calc(var(--grid)*1.75); }
+.dom-title { font-size:0.9rem; color:var(--gold); font-weight:600; margin-bottom:calc(var(--grid)*1.5); display:flex; align-items:baseline; gap:8px; }
+.dom-sub { font-size:0.66rem; color:var(--dim); font-weight:400; }
+.dom-row { margin-bottom:calc(var(--grid)*1.5); }
+.dom-row:last-child { margin-bottom:0; }
+.dom-head { display:flex; align-items:baseline; gap:6px; margin-bottom:5px; }
+.dom-name { font-size:0.82rem; color:var(--text); font-weight:500; }
+.dom-god { font-size:0.64rem; opacity:0.8; margin-left:auto; }
+.dom-sc { font-size:0.95rem; font-weight:700; min-width:26px; text-align:right; }
+.dom-line { font-size:0.72rem; color:#b7ab93; margin-top:5px; line-height:1.5; }
+
+/* ===== 행운 아이템 ===== */
+.lucky-items { margin-top:calc(var(--grid)*1.5); }
+.lucky-card { background:#14100b; border:1px solid #3a2f22; border-radius:12px; padding:calc(var(--grid)*1.75); }
+.lucky-title { font-size:0.9rem; color:var(--gold); font-weight:600; margin-bottom:calc(var(--grid)*1.5); }
+.lucky-sub { font-size:0.68rem; color:var(--dim); font-weight:400; margin-left:6px; }
+.lucky-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.lucky-chip { background:#0f0c08; border:1px solid #2a2318; border-radius:8px; padding:9px 12px; display:flex; flex-direction:column; gap:3px; }
+.lucky-chip span { font-size:0.66rem; color:var(--dim); }
+.lucky-chip b { font-size:0.9rem; font-weight:700; letter-spacing:0.2px; }
+.lucky-note { font-size:0.66rem; color:#8f836c; margin:calc(var(--grid)*1.25) 0 0; line-height:1.5; }
+
+/* ===== 궁합 초대 배너 / 수락 ===== */
+.invite-banner { background:#15120f; border:1px solid var(--gold); border-radius:10px; padding:12px 14px; margin:0 0 calc(var(--grid)*1.5); font-size:0.82rem; color:var(--text); line-height:1.55; animation:cta-breath 3.4s ease-in-out infinite; }
+.invite-banner .ib-sub { display:block; font-size:0.72rem; color:#c2b191; margin-top:4px; }
+.invite-accepted { font-size:0.78rem; color:var(--gold); background:#15120f; border-left:2px solid var(--gold); padding:8px 11px; border-radius:0 6px 6px 0; margin-bottom:calc(var(--grid)*1.5); line-height:1.5; }

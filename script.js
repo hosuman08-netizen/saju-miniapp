@@ -55,7 +55,7 @@ function applySajuStreakShield(s) {
     s.shieldLast = t;
     s.last = dayOffsetKey(-1);
     try {
-      if (window.toast) toast('🛡️ 연속 보호막이 ' + s.count + '일 스트릭을 지켰어요');
+      if (window.SajuUI && SajuUI.toast) SajuUI.toast('🛡️ 연속 보호막이 ' + s.count + '일 스트릭을 지켰어요');
       else if (document.body) {
         var el = document.createElement('div');
         el.textContent = '🛡️ 연속 보호막 · ' + s.count + '일 유지';
@@ -548,6 +548,7 @@ function doReading() {
   else if (reading.multi > 1.25) sub = `✨ 오늘 기운의 결이 유난히 선명합니다 (공명 ${resPct}%).`;
   else if (reading.multi > 1.1) sub = `기운의 결 공명 ${resPct}% — 결이 또렷한 편입니다.`;
   document.getElementById('surprise').innerHTML = sub;
+  try { renderDomainFortune(); renderLuckyItems(); } catch (e) {}
   document.getElementById('reading').classList.remove('hidden');
   document.getElementById('reading').scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (freeLeft > 0) freeLeft--;
@@ -641,6 +642,107 @@ function personalInsight(base) {
   return A.strong
     ? `신강한 사주라 오늘도 힘이 넘칩니다 — 안으로 쌓기보다 <b>밖으로 베풀고 내보낼 때</b> 그릇이 커집니다.`
     : `신약한 사주라 무리는 금물 — 오늘은 <b>돕는 손을 빌리고 나를 채우는 쪽</b>이 이롭습니다.`;
+}
+
+/* ===== 세분화 일일 운세(생활 영역별) + 행운 아이템 — 전부 결정적(명리 근거, 랜덤 없음) ===== */
+// 각 생활 영역을 주관하는 십신을 일간 기준 오행으로 환산.
+// 재성=내가 극(財)·관성=나를 극(官)·인성=나를 생(印)·식상=내가 생(食傷)·비겁=동기(比劫)
+function domainSpec(dm, gender) {
+  const jae = SAJU.OVERCOME[dm];       // 재성
+  const gwan = SAJU.OVERCOME_BY[dm];   // 관성
+  const ins = SAJU.GEN_BY[dm];         // 인성
+  const sik = SAJU.GEN[dm];            // 식상
+  const bi = dm;                       // 비겁
+  const spouse = gender === 'f' ? gwan : jae; // 여:정관(남편) 남:정재(처)
+  return [
+    { key: '재물', icon: '💰', el: jae, god: '재성', desc: '재물·실속·성과' },
+    { key: '애정·인연', icon: '💗', el: spouse, god: gender === 'f' ? '관성' : '재성', desc: '배우자궁·끌림', spouse: true },
+    { key: '직장·명예', icon: '🏛️', el: gwan, god: '관성', desc: '인정·책임·시험' },
+    { key: '학업·귀인', icon: '📖', el: ins, god: '인성', desc: '배움·문서·조력' },
+    { key: '소통·표현', icon: '🗣️', el: sik, god: '식상', desc: '창작·대인·말' },
+    { key: '건강·활력', icon: '🌿', el: bi, god: '비겁', desc: '체력·뿌리·기운' }
+  ];
+}
+// 같은 날엔 항상 같은 값이 나오는 결정적 미세 변주(-4..+4). Math.random 아님.
+function seededJitter(daySeed, i) { return ((daySeed * 7 + i * 13) % 9) - 4; }
+function domainScore(spec, i, ctx) {
+  const E = spec.el;
+  let s = 54;
+  if (ctx.todayEl === E) s += 15;                       // 오늘 그 기운이 직접 온다
+  else if (SAJU.GEN[ctx.todayEl] === E) s += 9;         // 오늘이 그 기운을 생함
+  else if (SAJU.OVERCOME[ctx.todayEl] === E) s -= 7;    // 오늘이 그 기운을 극함
+  if (ctx.yongsin.includes(E)) s += 11;                 // 용신 영역 = 이로움
+  else if (ctx.gisin && ctx.gisin.includes(E)) s -= 7;  // 기신 영역 = 부담
+  const cE = ctx.cnt[E] || 0;
+  if (cE === 0) s -= 6; else if (cE >= 3) s += 5;        // 사주 내 결핍/과다
+  if (spec.spouse && SAJU.BRANCH_EL[ctx.todayBranch] === E) s += 5; // 배우자궁 호응
+  if (spec.key === '건강·활력') {
+    if (ctx.todayEl === SAJU.OVERCOME_BY[ctx.dm] && !ctx.strong) s -= 6; // 신약한데 관성 극
+    else if (ctx.todayEl === ctx.dm || ctx.todayEl === SAJU.GEN_BY[ctx.dm]) s += 5; // 일간 부조
+  }
+  s += seededJitter(ctx.daySeed, i);
+  return Math.max(22, Math.min(97, Math.round(s)));
+}
+function domainLine(spec, score) {
+  if (score >= 82) return `활짝 열림 — ${spec.desc} 흐름을 적극 붙잡기 좋은 날.`;
+  if (score >= 68) return `순조로움 — ${spec.desc} 쪽에 무게를 실어도 좋습니다.`;
+  if (score >= 52) return `무난 — 큰 굴곡 없이 평이한 결.`;
+  if (score >= 38) return `주의 — ${spec.desc}은 서두르지 말고 한 박자 늦추세요.`;
+  return `쉬어감 — 오늘은 ${spec.desc} 무리 금물, 힘을 아끼세요.`;
+}
+function todayDomainFortune() {
+  if (!lastChart || !lastAnalysis) return null;
+  const dm = SAJU.STEM_EL[lastChart.dayMaster];
+  const gender = (window.SajuUI && SajuUI.state && SajuUI.state.gender) ||
+    ((document.getElementById('gender') || {}).value) || 'm';
+  const now = new Date();
+  const dIdx = ((SAJU.jdn(now.getFullYear(), now.getMonth() + 1, now.getDate()) + 49) % 60 + 60) % 60;
+  const todayEl = SAJU.STEM_EL[SAJU.STEMS[dIdx % 10]];
+  const todayBranch = SAJU.BRANCHES[dIdx % 12];
+  const ctx = {
+    todayEl, todayBranch, cnt: lastAnalysis.cnt || {}, yongsin: lastAnalysis.yongsin || [],
+    gisin: lastAnalysis.gisin || [], dm, strong: !!lastAnalysis.strong, daySeed: dIdx
+  };
+  return domainSpec(dm, gender).map((sp, i) => {
+    const sc = domainScore(sp, i, ctx);
+    return { sp, sc, line: domainLine(sp, sc) };
+  });
+}
+function renderDomainFortune() {
+  const host = document.getElementById('domainFortune'); if (!host) return;
+  const doms = todayDomainFortune(); if (!doms) { host.innerHTML = ''; return; }
+  const rows = doms.map(d => {
+    const col = SAJU.EL_COLOR[d.sp.el] || '#c5a46e';
+    return `<div class="dom-row">` +
+      `<div class="dom-head"><span class="dom-name">${d.sp.icon} ${d.sp.key}</span>` +
+      `<span class="dom-god" style="color:${col}">${d.sp.god}·${d.sp.el}</span>` +
+      `<span class="dom-sc" style="color:${col}">${d.sc}</span></div>` +
+      `<div class="el-bar"><i style="width:${d.sc}%;background:${col}"></i></div>` +
+      `<div class="dom-line">${d.line}</div></div>`;
+  }).join('');
+  host.innerHTML = `<div class="dom-card"><div class="dom-title">오늘의 영역별 세부 운세` +
+    `<span class="dom-sub">일진 기준 · 매일 달라집니다</span></div>${rows}</div>`;
+}
+const HADO_NUM = { 수: [1, 6], 화: [2, 7], 목: [3, 8], 금: [4, 9], 토: [5, 10] };
+const EL_DIR = { 목: '동쪽', 화: '남쪽', 토: '중앙', 금: '서쪽', 수: '북쪽' };
+const EL_COLNAME = { 목: '청록', 화: '붉은', 토: '노란', 금: '흰', 수: '검은·남색' };
+const EL_TIME = { 목: '인·묘시 (03–07시)', 화: '사·오시 (09–13시)', 토: '진·술·축·미시', 금: '신·유시 (15–19시)', 수: '해·자시 (21–01시)' };
+function renderLuckyItems() {
+  const host = document.getElementById('luckyItems'); if (!host) return;
+  if (!lastAnalysis || !lastAnalysis.yongsin) { host.innerHTML = ''; return; }
+  const E = lastAnalysis.yongsin[0];
+  const col = SAJU.EL_COLOR[E] || '#c5a46e';
+  const nums = HADO_NUM[E] || [];
+  host.innerHTML = `<div class="lucky-card">` +
+    `<div class="lucky-title">나의 행운 아이템 <span class="lucky-sub">용신 <b style="color:${col}">${E}</b> 기준</span></div>` +
+    `<div class="lucky-grid">` +
+    `<div class="lucky-chip"><span>행운의 수</span><b style="color:${col}">${nums.join(' · ')}</b></div>` +
+    `<div class="lucky-chip"><span>행운의 색</span><b style="color:${col}">${EL_COLNAME[E]} 계열</b></div>` +
+    `<div class="lucky-chip"><span>행운의 방위</span><b style="color:${col}">${EL_DIR[E]}</b></div>` +
+    `<div class="lucky-chip"><span>행운의 시간</span><b style="color:${col}">${EL_TIME[E]}</b></div>` +
+    `</div>` +
+    `<p class="lucky-note">용신은 당신에게 부족해 보완이 이로운 기운입니다. 위 항목은 그 오행에서 도출한 상징으로, 재미로 곁에 두는 엔터테인먼트 요소입니다.</p>` +
+    `</div>`;
 }
 
 function getSajuReading() {
@@ -1181,7 +1283,7 @@ window.onload = () => {
     var tips = ['오늘 오행 균형 한 번 체크', '친구와 궁합 카드 공유해보기', '대운 흐름 30초 훑기'];
     var t = tips[new Date().getDate() % tips.length];
     setTimeout(function(){
-      if (window.toast) toast('☀️ ' + t);
+      if (window.SajuUI && SajuUI.toast) SajuUI.toast('☀️ ' + t);
       else if (document.body) {
         var el = document.createElement('div');
         el.textContent = '☀️ ' + t;
