@@ -923,3 +923,26 @@ window.onload = () => {
   // hook mutation after first reading
   setTimeout(() => { if (document.getElementById('readingText')) mutateSharedFate('init', 3); }, 1200);
 };
+
+
+// 3H Co-Star saju: daily return reason on boot
+(function dailyFocusSaju(){
+  try {
+    var k = 'saju_daily_focus_' + new Date().toISOString().slice(0,10);
+    if (localStorage.getItem(k)) return;
+    localStorage.setItem(k, '1');
+    var tips = ['오늘 오행 균형 한 번 체크', '친구와 궁합 카드 공유해보기', '대운 흐름 30초 훑기'];
+    var t = tips[new Date().getDate() % tips.length];
+    setTimeout(function(){
+      if (window.toast) toast('☀️ ' + t);
+      else if (document.body) {
+        var el = document.createElement('div');
+        el.textContent = '☀️ ' + t;
+        el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1520;color:#fbbf24;padding:10px 16px;border-radius:12px;z-index:9999;font-size:13px;border:1px solid #fbbf24;';
+        document.body.appendChild(el);
+        setTimeout(function(){ el.remove(); }, 3200);
+      }
+      if (window.legionTrack) legionTrack('daily_focus', {tip:t});
+    }, 900);
+  } catch(e) {}
+})();
