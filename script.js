@@ -40,20 +40,50 @@ function todayKey() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+function dayOffsetKey(n) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+/** Duolingo-class: 1 missed day freeze once/7d if streak≥3 (loss aversion, guilt-free return) */
+function applySajuStreakShield(s) {
+  if (!s || !s.last) return { s: s || { last: null, count: 0, best: 0 }, froze: false };
+  const t = todayKey();
+  if (s.last === t || s.last === dayOffsetKey(-1)) return { s, froze: false };
+  const missedOne = s.last === dayOffsetKey(-2);
+  const shieldReady = !s.shieldLast || ((new Date(t) - new Date(s.shieldLast)) / 86400000) >= 7;
+  if (missedOne && shieldReady && (s.count || 0) >= 3) {
+    s.shieldLast = t;
+    s.last = dayOffsetKey(-1);
+    try {
+      if (window.toast) toast('🛡️ 연속 보호막이 ' + s.count + '일 스트릭을 지켰어요');
+      else if (document.body) {
+        var el = document.createElement('div');
+        el.textContent = '🛡️ 연속 보호막 · ' + s.count + '일 유지';
+        el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1520;color:#fbbf24;padding:10px 16px;border-radius:12px;z-index:9999;font-size:13px;border:1px solid #fbbf24';
+        document.body.appendChild(el);
+        setTimeout(function () { el.remove(); }, 3200);
+      }
+    } catch (e) {}
+    if (window.legionTrack) try { legionTrack('streak_freeze', { count: s.count }); } catch (e) {}
+    return { s, froze: true };
+  }
+  return { s, froze: false };
+}
 function bumpStreak() {
   let s;
   try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
   if (!s || typeof s !== 'object') s = { last: null, count: 0, best: 0 };
   const t = todayKey();
   if (s.last === t) { renderStreak(); return s; }
-  const y = new Date(); y.setDate(y.getDate() - 1);
-  const yk = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+  const bridged = applySajuStreakShield(s);
+  s = bridged.s;
+  const yk = dayOffsetKey(-1);
   s.count = (s.last === yk) ? (s.count || 0) + 1 : 1;
   s.best = Math.max(s.best || 0, s.count);
   s.last = t;
   localStorage.setItem(STREAK_KEY, JSON.stringify(s));
   renderStreak();
-  if (window.legionTrack) try { window.legionTrack('streak', { count: s.count, best: s.best }); } catch (e) {}
+  if (window.legionTrack) try { window.legionTrack('streak', { count: s.count, best: s.best, froze: !!bridged.froze }); } catch (e) {}
   return s;
 }
 function renderStreak() {
@@ -68,8 +98,10 @@ function renderStreak() {
   }
   const count = s.count || 0;
   const best = s.best || 0;
+  const shieldReady = !s.shieldLast || ((new Date(todayKey()) - new Date(s.shieldLast)) / 86400000) >= 7;
   el.textContent = count + '일 연속 · 기록 ' + codex.length + '개'
-    + (best > count ? ' · 최장 ' + best + '일' : '');
+    + (best > count ? ' · 최장 ' + best + '일' : '')
+    + (count >= 3 && shieldReady ? ' · 🛡️보호 1회' : (s.shieldLast ? ' · 🛡️사용됨' : ''));
 }
 function renderMiniDash() {
   const el = document.getElementById('miniDash');
@@ -688,8 +720,9 @@ function showMoneyPipe() {
     '<button type="button" class="primary-cta" onclick="unlockPremium()">상세 풀이 (가상)</button>' +
     '<a class="secondary" style="display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #666;text-decoration:none;color:inherit" href="mailto:hoyashi95@gmail.com?subject=%5B%EC%82%AC%EC%A3%BC%5D%20%ED%9B%84%EC%9B%90%2F%EA%B8%B0%ED%9A%8D">☕ 커피 후원 문의</a>' +
     '<button type="button" class="secondary" onclick="shareResult && shareResult()">📤 공유하고 무료 리필</button>' +
+    '<a class="secondary" style="display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #c5a46e55;text-decoration:none;color:#e0b552" href="https://hosuman08-netizen.github.io/tarot-oracle/?utm_source=saju&utm_medium=duo&ref=saju_pipe">🃏 타로와 교차 읽기</a>' +
     '</div>';
-  try { if (window.legionTrack) legionTrack('money_pipe_shown', { app: 'saju' }); } catch (e) {}
+  try { if (window.legionTrack) legionTrack('money_pipe_shown', { app: 'saju', duo: 'tarot' }); } catch (e) {}
 }
 
 function recordToCodex(type, text, score, extra={}) {
