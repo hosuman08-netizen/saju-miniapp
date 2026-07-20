@@ -256,6 +256,8 @@ function generateSaju() {
   const pillarsText = document.getElementById('pillars').textContent || '';
   drawSajuCanvas(pillarsText, 70);
   if (window.p6LungSurpriseEye) console.log('[p20] p6 lung eye available for fate canvas');
+  // 계측: 사주 차트 생성 성공 = 활성화
+  if (window.legionTrack) window.legionTrack('activate');
 }
 
 function doReading() {
@@ -752,6 +754,8 @@ function showToast(msg) {
 // 유저용 결과 공유 버튼 핸들러
 function shareResult() {
   const text = buildShareText();
+  // 계측: 결과 공유 클릭 = 바이럴
+  if (window.legionTrack) window.legionTrack('share');
   // 내부 크로스 로직 유지 (유저에 코드네임 노출 없이 조용히 시딩)
   seedCrossOnShare();
   if (navigator.share) {
@@ -774,6 +778,8 @@ function copyShareFallback(text) {
 
 // X(트위터) 인텐트 — 옵션 버튼
 function shareToX() {
+  // 계측: X 공유 클릭 = 바이럴
+  if (window.legionTrack) window.legionTrack('share');
   seedCrossOnShare();
   const text = buildShareText();
   const url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
