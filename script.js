@@ -259,11 +259,20 @@ function generateSaju() {
 }
 
 function doReading() {
-  if (freeLeft <= 0 && !confirm('무료 소진. 프리미엄으로? (FICTIONAL)')) return;
+  if (freeLeft <= 0 && !confirm('오늘 무료 열람을 다 쓰셨어요. 프리미엄 상세 풀이로 이어볼까요? (가상 엔터테인먼트)')) return;
   const reading = getSajuReading();
-  const boostedText = reading.text + (reading.nearMiss ? ' <span class="surprise">⚡ 아깝게 놓침: 대길 1점 차이 — 다음이 더 강렬</span>' : '');
-  document.getElementById('readingText').innerHTML = boostedText;
-  document.getElementById('surprise').innerHTML = reading.multi > 1.1 ? `⚡ 서프라이즈 배수 x${reading.multi.toFixed(1)} — 공명도 ${reading.res}` : (reading.pity ? '🌟 반전 운세: 나쁜 흐름이 끝났어요' : '');
+  // 근접(near-miss)·공명·반전을 사주 언어로 표현 (개발 용어/슬롯 은어 제거 — 유저는 명리 톤만 봄)
+  const nearMissLine = reading.nearMiss
+    ? ' <span class="surprise">⚡ 대길의 문턱 — 한 끗 차이로 스쳤습니다. 흐름이 무르익는 중이니 다음 결이 더 짙습니다.</span>'
+    : '';
+  document.getElementById('readingText').innerHTML = reading.text + nearMissLine;
+  // 공명도(resonance)를 '기운의 결' 강도로 은유. 반전(pity)은 흐름 전환 서사.
+  const resPct = Math.round((parseFloat(reading.res) || 0.5) * 100);
+  let sub = '';
+  if (reading.pity) sub = '🌟 흐름의 반전 — 막혔던 기운이 풀리기 시작합니다.';
+  else if (reading.multi > 1.25) sub = `✨ 오늘 기운의 결이 유난히 선명합니다 (공명 ${resPct}%).`;
+  else if (reading.multi > 1.1) sub = `기운의 결 공명 ${resPct}% — 결이 또렷한 편입니다.`;
+  document.getElementById('surprise').innerHTML = sub;
   document.getElementById('reading').style.display = 'block';
   if (freeLeft > 0) freeLeft--;
   updateFomo();
@@ -425,7 +434,8 @@ function voiceReading() {
   speechSynthesis.speak(utter);
   const s = LilithPsych.resonance || Math.random();
   if (s > 0.55) {
-    document.getElementById('surprise').innerHTML += ` | 서프라이즈 x${(s*1.7).toFixed(1)}`;
+    const el = document.getElementById('surprise');
+    if (el && !el.innerHTML.includes('낭독')) el.innerHTML += ` <span style="opacity:.7">· 낭독으로 들으니 결이 더 깊게 스밉니다.</span>`;
   }
 }
 
@@ -688,10 +698,10 @@ function fateShare(fromCodex=false) {
     alert(`✅ 운세 이야기가 복사됐어요. 보너스 크레딧 +${bonus}(가상).\n\n가상 엔터테인먼트용입니다.`);
     if (dataUrl) console.log('[share] relic card exported');
     localStorage.setItem('niobe_k_fate', (parseInt(localStorage.getItem('niobe_k_fate')||'0')+1)+'');
-  }).catch(()=> prompt('Copy Fate Story:', story));
+  }).catch(()=> prompt('아래 운세 이야기를 복사해 공유하세요:', story));
   // Surprise story share trigger bonus if high multi
   if ((relic.multi||1) > 1.3) {
-    setTimeout(()=>alert('⚡ 높은 서프라이즈 — 특별 공유 보너스 창이 열렸어요.'), 900);
+    setTimeout(()=>alert('⚡ 오늘 기운의 결이 유난히 짙어, 이 기록은 특별히 선명하게 남습니다. (가상)'), 900);
   }
 }
 
