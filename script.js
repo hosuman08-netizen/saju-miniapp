@@ -175,7 +175,9 @@ function renderMiniDash() {
   try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
   const shares = parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0;
   const today = todayKey();
+  const yday = dayOffsetKey(-1);
   const todayReads = codex.filter(c => (c.ts || '').slice(0, 10) === today).length;
+  const ydayReads = codex.filter(c => (c.ts || '').slice(0, 10) === yday).length;
   const weekN = codexWeekN(codex);
   let weekBest = 0;
   try {
@@ -186,13 +188,19 @@ function renderMiniDash() {
       if (t >= cut && sc > weekBest) weekBest = sc;
     });
   } catch (e) {}
+  const delta = todayReads - ydayReads;
+  const goal = 2;
+  const goalPct = Math.min(100, Math.round(todayReads / goal * 100));
   el.innerHTML =
     '<div class="stat"><b>' + (s.count || 0) + '</b><span>연속 일</span></div>' +
     '<div class="stat"><b>' + codex.length + '</b><span>총 기록</span></div>' +
     '<div class="stat"><b>' + todayReads + '</b><span>오늘 열람</span></div>' +
+    '<div class="stat"><b>' + (delta > 0 ? '+' + delta : String(delta)) + '</b><span>전일 대비</span></div>' +
     '<div class="stat"><b>' + weekN + '</b><span>7일 속도</span></div>' +
     (weekBest ? '<div class="stat"><b>' + weekBest + '</b><span>7일 최고</span></div>' : '') +
-    '<div class="stat"><b>' + shares + '</b><span>공유</span></div>';
+    '<div class="stat"><b>' + shares + '</b><span>공유</span></div>' +
+    '<div style="grid-column:1/-1;margin-top:6px"><div style="font-size:11px;opacity:.75;margin-bottom:3px">오늘 목표 ' + todayReads + '/' + goal + (todayReads >= goal ? ' ✓' : '') + '</div>' +
+    '<div style="height:6px;background:#1c1826;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:' + goalPct + '%;background:linear-gradient(90deg,#e0b552,#67e8f9)"></i></div></div>';
 }
 function offerSharePeak(reading) {
   const host = document.getElementById('reading');
