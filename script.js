@@ -90,9 +90,8 @@ function renderStreak() {
   const el = document.getElementById('streak');
   if (!el) return;
   let s;
-  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{
-  try{ var s=JSON.parse(localStorage.getItem(STREAK_KEY)||'{}'); if(s.best&&el) el.textContent += (el.textContent?' · ':'')+'최장 '+s.best+'일 정진'; }catch(e){}
-}'); } catch (e) { s = {}; }
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  try { if (s && s.best && el) el.textContent += (el.textContent ? ' · ' : '') + '최장 ' + s.best + '일 정진'; } catch (e) {}
   const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
   if (!codex.length) {
     el.textContent = '아직 기록이 없어요 — 명식을 뽑고 운세를 열어보세요';
