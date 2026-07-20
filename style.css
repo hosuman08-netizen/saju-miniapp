@@ -56,3 +56,18 @@ main { max-width:618px; margin:0 auto; } /* Vitruvian 0.618 base */
 /* 오늘 일진 라벨 */
 .today-rel { color:var(--gold); font-size:0.86rem; }
 .aligned { color:#5aa469; font-size:0.72rem; }
+
+/* === 결과 공유 (바이럴 루프) === */
+.share-row { display:flex; gap:var(--grid); justify-content:center; flex-wrap:wrap; align-items:center; }
+/* X 인텐트는 조용한 보조 — 주인공 CTA 하나 유지 */
+.share-x { display:inline-flex; align-items:center; gap:4px; }
+/* 복사됨 토스트 — 화면 하단 중앙, ease-out 페이드 */
+#toast {
+  position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(8px);
+  background:#15120f; color:var(--text); border:1px solid var(--gold);
+  padding:9px 18px; border-radius:999px; font-size:0.8rem; font-weight:600;
+  opacity:0; pointer-events:none; z-index:50;
+  transition:opacity 200ms ease-out, transform 200ms ease-out;
+  box-shadow:0 6px 20px rgba(0,0,0,0.45);
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }

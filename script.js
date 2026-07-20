@@ -615,6 +615,92 @@ function fateShare(fromCodex=false) {
   }
 }
 
+// =====================================================================
+// 결과 공유 = 바이럴 루프 (유저용 깔끔 버전) — Niobe/Trinity
+// 정직: 실제 사주 분석(오행 과다/부족) + 오늘 운세 relation만 사용. 가짜 수치·과장 없음.
+// navigator.share(모바일 네이티브) → 실패시 클립보드 복사 + 토스트. X 인텐트 옵션.
+// 내부 크로스 로직(p9/p11 시드·K카운트)은 유지하되 유저 노출 코드네임은 제거.
+// =====================================================================
+const SHARE_URL = 'https://hosuman08-netizen.github.io/saju-miniapp/';
+
+// 실제 분석에서 정직한 공유 요약 한 줄 생성 (과다·부족 오행 + 오늘 운세)
+function buildShareSummary() {
+  let elems = '', luck = '';
+  if (lastAnalysis) {
+    const A = lastAnalysis;
+    const over = A.cnt[A.strongest] >= 3 ? `${A.strongest} 과다` : `${A.strongest} 강세`;
+    const lack = A.missing.length ? `${A.missing[0]} 부족` : `${A.weakest} 약세`;
+    elems = `오행은 ${over}·${lack}`;
+  }
+  // 오늘 운세: 저장된 마지막 결과의 relation 텍스트 앞부분
+  const base = todayReadingBase();
+  if (base) luck = `오늘은 ${base.relation}의 기운`;
+  // 조합 (둘 중 있는 것만)
+  if (elems && luck) return `내 사주 ${elems}, ${luck}.`;
+  if (elems) return `내 사주 ${elems}.`;
+  if (luck) return `${luck}이 흐르는 날.`;
+  return '내 사주 팔자와 오늘의 운세를 봤어요.';
+}
+
+// 공유 텍스트: 결과 요약 + 호기심 훅 + URL + 해시태그 (친구 톤·정직)
+function buildShareText() {
+  const summary = buildShareSummary();
+  return `${summary} 너도 생년월일 넣고 봐봐 👀\n${SHARE_URL}\n#사주 #오늘의운세`;
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  requestAnimationFrame(() => t.classList.add('show'));
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// 유저용 결과 공유 버튼 핸들러
+function shareResult() {
+  const text = buildShareText();
+  // 내부 크로스 로직 유지 (유저에 코드네임 노출 없이 조용히 시딩)
+  seedCrossOnShare();
+  if (navigator.share) {
+    navigator.share({ title: '사주 명리 · 오늘의 운세', text, url: SHARE_URL })
+      .catch(() => copyShareFallback(text));
+    return;
+  }
+  copyShareFallback(text);
+}
+
+function copyShareFallback(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('복사됐어요 · 붙여넣기 해서 공유하세요'))
+      .catch(() => prompt('아래 텍스트를 복사해 공유하세요:', text));
+  } else {
+    prompt('아래 텍스트를 복사해 공유하세요:', text);
+  }
+}
+
+// X(트위터) 인텐트 — 옵션 버튼
+function shareToX() {
+  seedCrossOnShare();
+  const text = buildShareText();
+  const url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+  window.open(url, '_blank', 'noopener');
+}
+
+// 내부 크로스 시딩(유저 비노출) — 기존 cross 로직을 이 지점에서만 조용히 재사용
+function seedCrossOnShare() {
+  try {
+    let codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+    const relic = (JSON.parse(localStorage.getItem('readingLast') || 'null')) || codex[0] || {};
+    localStorage.setItem('p20_fate_to_p9', JSON.stringify({ score: relic.score || 70, power: relic.power, ts: Date.now() }));
+    localStorage.setItem('p20_fate_to_p11', JSON.stringify({ relicPower: relic.power, aura: 'fate', ts: Date.now() }));
+    localStorage.setItem('niobe_k_fate', (parseInt(localStorage.getItem('niobe_k_fate') || '0') + 1) + '');
+  } catch (e) {}
+}
+window.shareResult = shareResult;
+window.shareToX = shareToX;
+
 window.onload = () => {
   updateFomo();
   initP21Link();

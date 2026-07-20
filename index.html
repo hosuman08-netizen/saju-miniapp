@@ -56,7 +56,10 @@
       <h2>운세 결과</h2>
       <div id="readingText" class="card"></div>
       <div class="surprise" id="surprise"></div>
-      <button onclick="fateShare()" class="primary-cta">🌌 운명 카드 공유하기</button>
+      <div class="share-row">
+        <button onclick="shareResult()" class="primary-cta">📤 결과 공유</button>
+        <button onclick="shareToX()" class="secondary share-x">𝕏 로 공유</button>
+      </div>
       <div style="font-size:0.65rem;opacity:0.6;margin-top:8px">엔터테인먼트용 가상 풀이입니다 · 실제 운명 조언 아님 · 18+</div>
     </section>
 
@@ -64,7 +67,7 @@
       <h2>운명의 서 — 나의 운세 기록</h2>
       <div id="codexList"></div>
       <button onclick="showCodex()" class="secondary">기록 다시 보기 (기록 강화)</button>
-      <button onclick="fateShare(true)" class="secondary" style="margin-top:4px;">📤 대표 운세 이야기로 공유</button>
+      <button onclick="shareResult()" class="secondary" style="margin-top:4px;">📤 결과 공유</button>
       <div style="font-size:0.65rem;opacity:0.55">기록을 누르면 더 선명해집니다 · 모두 가상 · 엔터테인먼트용</div>
     </section>
   </main>
