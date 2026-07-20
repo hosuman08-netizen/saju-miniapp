@@ -81,15 +81,27 @@
       localStorage.setItem('saju_last_birth', birth);
       var reads = +(localStorage.getItem('saju_reads') || 0) + 1;
       localStorage.setItem('saju_reads', String(reads));
-      // daily streak
+      // daily streak + freeze (1 miss/7d if streak≥3)
       var st = JSON.parse(localStorage.getItem('saju_streak') || '{}');
       var td = new Date(); var tk = td.getFullYear() + '-' + (td.getMonth()+1) + '-' + td.getDate();
       var yd = new Date(); yd.setDate(yd.getDate()-1); var yk = yd.getFullYear() + '-' + (yd.getMonth()+1) + '-' + yd.getDate();
+      var y2d = new Date(); y2d.setDate(y2d.getDate()-2); var y2k = y2d.getFullYear() + '-' + (y2d.getMonth()+1) + '-' + y2d.getDate();
       if (st.last !== tk) {
+        if (st.last && st.last !== yk && st.last === y2k && (st.count || 0) >= 3) {
+          var ready = !st.shieldLast || ((new Date(tk) - new Date(st.shieldLast)) / 86400000) >= 7;
+          if (ready) { st.shieldLast = tk; st.last = yk; try{legionTrack('streak_freeze',{count:st.count})}catch(e){} }
+        }
         st.count = (st.last === yk) ? (st.count || 0) + 1 : 1;
         st.last = tk;
         localStorage.setItem('saju_streak', JSON.stringify(st));
       }
+      // store one-line daily hook for return loop
+      try {
+        var hook = (anal && (anal.todayLine || anal.summary || anal.mood)) || '';
+        if (!hook && anal && anal.cnt) hook = '오행 편중 관찰 · 오늘 한 치';
+        if (hook) localStorage.setItem('saju_today_line', String(hook).slice(0, 80));
+        localStorage.setItem('saju_today_key', tk);
+      } catch (e2) {}
     } catch (e) {}
 
     // script.js 하위 호환 (오늘의 운세 · 코덱스가 참조)
@@ -701,7 +713,13 @@
         box.innerHTML = '<span style="font-size:12px;opacity:.6">최근 없음 · 첫 명식으로 루프 시작 · 조회 '+reads+'</span>';
         return;
       }
-      box.innerHTML = '<span style="font-size:12px;width:100%;opacity:.75">🔥 '+(st.count||0)+'일 · 조회 '+reads+' · 최근 탭</span>' +
+      var mid=new Date(); mid.setHours(24,0,0,0);
+      var remM=Math.max(0,Math.floor((mid-Date.now())/60000));
+      var clock=Math.floor(remM/60)+'h '+(remM%60)+'m';
+      var ready=!st.shieldLast||((new Date()-new Date(st.shieldLast||0))/86400000)>=7;
+      var line=''; try{ if(localStorage.getItem('saju_today_key')===(function(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();})()) line=localStorage.getItem('saju_today_line')||''; }catch(e){}
+      box.innerHTML = '<span style="font-size:12px;width:100%;opacity:.75">🔥 '+(st.count||0)+'일'+( (st.count||0)>=3&&ready?' 🛡️':'')+' · 조회 '+reads+' · 리셋 '+clock+' · 최근 탭</span>' +
+        (line?'<span style="font-size:12px;width:100%;color:#e0b552;margin:4px 0">오늘 한 줄 · '+String(line).replace(/</g,'&lt;')+'</span>':'') +
         rec.map(function (r, i) {
           return '<button type="button" data-ri="'+i+'" style="padding:6px 10px;border-radius:999px;border:1px solid #c5a46e55;background:#16121c;color:#ece8f1;font-size:12px;cursor:pointer">' +
             r.birth + (r.gender==='f'?' ·여':' ·남') + '</button>';
