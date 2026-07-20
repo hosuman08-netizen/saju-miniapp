@@ -189,8 +189,107 @@ const EL_LIFE = {
   수: { life: '지혜·연구·유통·소통', season: '겨울', dir: '북쪽', body: '신장·방광' }
 };
 
+// =====================================================================
+// 차트 결과 심화 해석 파생 — 전부 SAJU.compute/analyze 결과에서 결정적으로 파생.
+// 가짜 랜덤 0. 십신(十神) 오행 관계로 재물/연애/직장/건강을 읽는 명리 정통 로직.
+//  재성(내가 극하는 오행)=재물, 관성(나를 극하는 오행)=직장·명예,
+//  식상(내가 생하는 오행)=표현·연애매력, 인성(나를 생하는 오행)=배움·귀인,
+//  비겁(같은 오행)=자립·동료. 배우자성: 남=재성, 여=관성(전통).
+// =====================================================================
+
+// 오행 세력을 '충만/적절/결핍' 3단으로 판정 (사주 8글자 중 개수 기준, 결정적)
+function elTier(cnt, el) {
+  const v = cnt[el] || 0;
+  if (v >= 3) return 'over';   // 과다
+  if (v >= 1) return 'have';   // 보유
+  return 'none';               // 결핍
+}
+
+// 도메인별 십신 근거 해석 — [결핍, 보유, 과다] 세 톤. 순수 해석, 수치·확률 없음.
+const DOMAIN_READ = {
+  재물: {
+    icon: '💰', label: '재물',
+    none: '재성(財)이 옅어 큰돈을 좇기보다 <b>기술·전문성으로 값을 올리는</b> 편이 이롭습니다. 목돈은 한 번에보다 꾸준히 모을 때 붙습니다.',
+    have: '재성이 자리를 잡아 <b>현실 감각과 재물 운용력</b>이 있습니다. 벌이와 관리의 균형이 맞아 실속을 챙기는 유형입니다.',
+    over: '재성이 넘쳐 <b>돈과 기회가 몰리되 관리가 관건</b>. 벌리는 만큼 새기 쉬우니 절제와 분산이 곧 부(富)를 지킵니다.'
+  },
+  직장: {
+    icon: '💼', label: '직장·명예',
+    none: '관성(官)이 옅어 <b>틀에 매이기보다 자기 무대에서 빛나는</b> 유형. 조직보다 전문·프리·창업 길에서 자유롭게 큽니다.',
+    have: '관성이 갖춰져 <b>책임을 맡을수록 인정받는</b> 결. 공적인 자리·직책·평가에서 신뢰가 쌓이며 승진 운이 따릅니다.',
+    over: '관성이 강해 <b>압박과 책임이 큰 대신 권위·지위</b>를 크게 얻습니다. 힘을 감당할 실력을 갖추면 크게 오릅니다.'
+  },
+  연애: {
+    icon: '💗', label: '연애·인연',
+    none: '배우자성이 옅어 <b>인연은 서두르지 않을 때 깊게</b> 옵니다. 나를 알아보는 사람을 기다릴 가치가 있습니다.',
+    have: '배우자성이 자리해 <b>인연의 결이 또렷</b>합니다. 진솔함이 매력이 되어 오래가는 관계를 만드는 유형입니다.',
+    over: '배우자성이 강해 <b>인기와 인연이 많되 선택이 관건</b>. 마음을 한곳에 모을 때 관계가 깊어집니다.'
+  }
+};
+
 // 마지막 계산 결과 보관 (운세 해석에서 재사용)
 let lastChart = null, lastAnalysis = null;
+
+// 일간·분석·성별로부터 재물/직장/연애 3도메인을 결정적으로 읽어냄
+function readDomains(chart, A, gender) {
+  const dmEl = SAJU.STEM_EL[chart.dayMaster];
+  const wealthEl = SAJU.OVERCOME[dmEl];       // 재성
+  const officeEl = SAJU.OVERCOME_BY[dmEl];    // 관성
+  // 배우자성: 남=재성, 여=관성 (전통 명리)
+  const loveEl = gender === 'f' ? officeEl : wealthEl;
+  const pick = (dom, el) => {
+    const d = DOMAIN_READ[dom];
+    return { icon: d.icon, label: d.label, el, text: d[elTier(A.cnt, el)] };
+  };
+  return [
+    pick('재물', wealthEl),
+    pick('직장', officeEl),
+    pick('연애', loveEl)
+  ];
+}
+
+// 올해(연간지)·이달(월간지) 대운 흐름을 일간과의 십신으로 결정적으로 한 줄씩
+function readFlow(chart) {
+  const dm = SAJU.STEM_EL[chart.dayMaster];
+  const now = new Date();
+  const rel = (el) => {
+    if (el === dm) return { r: '비겁', t: '내 힘과 주관이 서는', tone: '자립·확장' };
+    if (SAJU.GEN[dm] === el) return { r: '식상', t: '표현하고 내보이면 통하는', tone: '창작·베풂' };
+    if (SAJU.OVERCOME[dm] === el) return { r: '재성', t: '현실 성과와 재물이 손에 잡히는', tone: '실속·수확' };
+    if (SAJU.OVERCOME_BY[dm] === el) return { r: '관성', t: '책임과 인정이 따르는', tone: '성취·지위' };
+    return { r: '인성', t: '배우고 채우며 귀인이 돕는', tone: '성장·회복' };
+  };
+  // 올해: 입춘 경계 반영한 연간
+  let yy = now.getFullYear();
+  const mm = now.getMonth() + 1, dd = now.getDate();
+  if (mm < 2 || (mm === 2 && dd < 4)) yy -= 1;
+  const yStem = SAJU.STEMS[((yy - 4) % 10 + 10) % 10];
+  const yearEl = SAJU.STEM_EL[yStem];
+  // 이달: 월주 천간 오행 (compute 재사용)
+  const mChart = SAJU.compute(now.getFullYear(), mm, dd, 12, 0);
+  const monthEl = SAJU.STEM_EL[mChart.month.stem];
+  const yr = rel(yearEl), mr = rel(monthEl);
+  return {
+    year: `올해는 <b style="color:${SAJU.EL_COLOR[yearEl]}">${yearEl}</b>의 해 — ${yr.t} <b>${yr.tone}</b>의 흐름입니다.`,
+    month: `이달은 <b style="color:${SAJU.EL_COLOR[monthEl]}">${monthEl}</b>의 달 — ${mr.t} <b>${mr.tone}</b>의 기운이 짙습니다.`
+  };
+}
+
+// 용신을 실전 언어로 — 어떤 색·방향·활동을 곁에 두면 균형이 잡히는가 (결정적)
+function readYongsin(A) {
+  const y0 = A.yongsin[0], y1 = A.yongsin[1];
+  const L0 = EL_LIFE[y0], L1 = EL_LIFE[y1];
+  return `당신을 살리는 기운은 <b style="color:${SAJU.EL_COLOR[y0]}">${y0}</b>·<b style="color:${SAJU.EL_COLOR[y1]}">${y1}</b>. `
+    + `<b>${L0.dir}</b> 방향, <b>${L0.season}</b>의 리듬, <b>${L0.life}</b> 같은 일이 당신의 기운을 채웁니다. `
+    + `흐름이 막힐 땐 ${y1}(${L1.life})의 결을 곁에 두세요.`;
+}
+
+// 히어로 한 줄 정체성 — 첫 3초 주인공. 일간 + 신강약 + 대표 결.
+const DM_ARCHETYPE = {
+  갑: '곧게 뻗는 개척자', 을: '유연히 감기는 생명력', 병: '세상을 밝히는 태양',
+  정: '은은히 스미는 촛불', 무: '흔들리지 않는 큰 산', 기: '품어 기르는 대지',
+  경: '벼려진 강철의 결단', 신: '정제된 보석의 예리함', 임: '스케일 큰 바다', 계: '총명하게 스미는 이슬'
+};
 
 function generateSaju() {
   const birth = document.getElementById('birth').value;
