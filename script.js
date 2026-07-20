@@ -1330,3 +1330,5 @@ window.onload = () => {
     }, 900);
   } catch(e) {}
 })();
+
+/* LEGION_WAVE_12_pipe_ensure */ /* pipe already present wave 12 */
