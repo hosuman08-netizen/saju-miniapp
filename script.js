@@ -1,3 +1,4 @@
+const SHARE_URL = 'https://hosuman08-netizen.github.io/saju-miniapp/';
 // p20 Saju Mini + p21 cross + p6 + p10 + Fate Codex
 // LILITH PSYCH + FULL-CHEAT: daily fate windows, surprise multipliers, pity, endowment on personal Codex relics, FOMO limited banners, variable ratio + near-miss in readings
 // Internal raw psych. Public: fictional entertainment only + layered prominent disclosure. 미꾸라지.
@@ -797,7 +798,7 @@ function fateShare(fromCodex=false) {
   if (!codex.length) { alert('먼저 운세를 봐서 기록을 만들어 주세요.'); return; }
   const relic = fromCodex ? codex[0] : (JSON.parse(localStorage.getItem('readingLast')||'null') || codex[0]);
   const duo = '사주 + 타로 운세';
-  const story = `🌌 나의 운세 기록 — ${relic.text || '운명 기록'}\nLv${relic.relicLevel||1} 기운 ${relic.power||relic.score} • x${(relic.multi||1).toFixed(1)}\n${duo}\n\n이 기록이 나를 말해줘요. 당신의 운세도 기록해 보세요.\n가상 엔터테인먼트용 · 18+ · 실제 운명 조언 아님.\n\n#오늘의운세 #사주타로\n👉 ${location.href}`;
+  const story = `🌌 나의 운세 기록 — ${relic.text || '운명 기록'}\nLv${relic.relicLevel||1} 기운 ${relic.power||relic.score} • x${(relic.multi||1).toFixed(1)}\n${duo}\n\n이 기록이 나를 말해줘요. 당신의 운세도 기록해 보세요.\n가상 엔터테인먼트용 · 18+ · 실제 운명 조언 아님.\n\n#오늘의운세 #사주타로\n👉 ${SHARE_URL}`;
   // UGC: canvas export as relic card (beautiful shareable visual)
   const canvas = document.getElementById('saju-canvas') || document.createElement('canvas');
   let dataUrl = '';
@@ -828,7 +829,6 @@ function fateShare(fromCodex=false) {
 // navigator.share(모바일 네이티브) → 실패시 클립보드 복사 + 토스트. X 인텐트 옵션.
 // 내부 크로스 로직(p9/p11 시드·K카운트)은 유지하되 유저 노출 코드네임은 제거.
 // =====================================================================
-const SHARE_URL = 'https://hosuman08-netizen.github.io/saju-miniapp/';
 
 // 실제 분석에서 정직한 공유 요약 한 줄 생성 (과다·부족 오행 + 오늘 운세)
 function buildShareSummary() {
