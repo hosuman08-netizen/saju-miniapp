@@ -71,6 +71,27 @@
     STATE.chart = chart; STATE.full = full; STATE.anal = anal; STATE.daeun = du;
     STATE.gender = gender; STATE.input = { birth: birth, time: time, timeUnknown: timeUnknown };
 
+    // 최근 프로필 루프 (원탭 재조회)
+    try {
+      var rec = JSON.parse(localStorage.getItem('saju_recent') || '[]');
+      var entry = { birth: birth, time: time, timeUnknown: timeUnknown, gender: gender, lon: lon, ja: ja, t: Date.now() };
+      rec = rec.filter(function (r) { return r.birth !== birth || r.gender !== gender; });
+      rec.unshift(entry);
+      localStorage.setItem('saju_recent', JSON.stringify(rec.slice(0, 6)));
+      localStorage.setItem('saju_last_birth', birth);
+      var reads = +(localStorage.getItem('saju_reads') || 0) + 1;
+      localStorage.setItem('saju_reads', String(reads));
+      // daily streak
+      var st = JSON.parse(localStorage.getItem('saju_streak') || '{}');
+      var td = new Date(); var tk = td.getFullYear() + '-' + (td.getMonth()+1) + '-' + td.getDate();
+      var yd = new Date(); yd.setDate(yd.getDate()-1); var yk = yd.getFullYear() + '-' + (yd.getMonth()+1) + '-' + yd.getDate();
+      if (st.last !== tk) {
+        st.count = (st.last === yk) ? (st.count || 0) + 1 : 1;
+        st.last = tk;
+        localStorage.setItem('saju_streak', JSON.stringify(st));
+      }
+    } catch (e) {}
+
     // script.js 하위 호환 (오늘의 운세 · 코덱스가 참조)
     try { lastChart = chart; lastAnalysis = anal; } catch (e) { /* 스코프 없으면 무시 */ }
     window.lastChart = chart; window.lastAnalysis = anal;
@@ -661,6 +682,53 @@
     $('input').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  window.SajuUI = { generate: generate, matchRun: matchRun, shareCard: shareCard, editInput: editInput, toast: toast, state: STATE };
+  function renderRecent() {
+    var box = document.getElementById('sajuRecent');
+    if (!box) {
+      var host = document.getElementById('input') || document.getElementById('birth') && document.getElementById('birth').parentNode;
+      if (!host) return;
+      box = document.createElement('div');
+      box.id = 'sajuRecent';
+      box.style.cssText = 'margin:10px 0;display:flex;flex-wrap:wrap;gap:6px';
+      if (host.parentNode) host.parentNode.insertBefore(box, host.nextSibling);
+      else host.appendChild(box);
+    }
+    try {
+      var rec = JSON.parse(localStorage.getItem('saju_recent') || '[]');
+      var st = JSON.parse(localStorage.getItem('saju_streak') || '{}');
+      var reads = localStorage.getItem('saju_reads') || '0';
+      if (!rec.length) {
+        box.innerHTML = '<span style="font-size:12px;opacity:.6">최근 없음 · 첫 명식으로 루프 시작 · 조회 '+reads+'</span>';
+        return;
+      }
+      box.innerHTML = '<span style="font-size:12px;width:100%;opacity:.75">🔥 '+(st.count||0)+'일 · 조회 '+reads+' · 최근 탭</span>' +
+        rec.map(function (r, i) {
+          return '<button type="button" data-ri="'+i+'" style="padding:6px 10px;border-radius:999px;border:1px solid #c5a46e55;background:#16121c;color:#ece8f1;font-size:12px;cursor:pointer">' +
+            r.birth + (r.gender==='f'?' ·여':' ·남') + '</button>';
+        }).join('');
+      Array.prototype.forEach.call(box.querySelectorAll('[data-ri]'), function (btn) {
+        btn.onclick = function () {
+          var r = rec[+btn.getAttribute('data-ri')];
+          if (!r) return;
+          var b = document.getElementById('birth'); if (b) b.value = r.birth;
+          var tm = document.getElementById('time'); if (tm && r.time) tm.value = r.time;
+          var tu = document.getElementById('timeUnknown'); if (tu) tu.checked = !!r.timeUnknown;
+          var g = document.getElementById('gender'); if (g) g.value = r.gender || 'm';
+          var j = document.getElementById('jaSchool'); if (j && r.ja) j.value = r.ja;
+          generate();
+          try { if (window.legionTrack) legionTrack('recent_rerun', {}); } catch (e) {}
+        };
+      });
+    } catch (e) {}
+  }
+
+  // boot recent after DOM
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderRecent);
+  else setTimeout(renderRecent, 0);
+  // re-render after generate
+  var _gen = generate;
+  generate = function () { _gen(); setTimeout(renderRecent, 50); };
+
+  window.SajuUI = { generate: generate, matchRun: matchRun, shareCard: shareCard, editInput: editInput, toast: toast, state: STATE, renderRecent: renderRecent };
   window.generateSaju = generate;   // 기존 진입점 호환
 })();
