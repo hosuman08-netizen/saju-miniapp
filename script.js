@@ -177,11 +177,21 @@ function renderMiniDash() {
   const today = todayKey();
   const todayReads = codex.filter(c => (c.ts || '').slice(0, 10) === today).length;
   const weekN = codexWeekN(codex);
+  let weekBest = 0;
+  try {
+    const cut = Date.now() - 7 * 86400000;
+    codex.forEach(function (c) {
+      const t = c && c.ts ? Date.parse(c.ts) : 0;
+      const sc = +(c && (c.score != null ? c.score : c.power)) || 0;
+      if (t >= cut && sc > weekBest) weekBest = sc;
+    });
+  } catch (e) {}
   el.innerHTML =
     '<div class="stat"><b>' + (s.count || 0) + '</b><span>연속 일</span></div>' +
     '<div class="stat"><b>' + codex.length + '</b><span>총 기록</span></div>' +
     '<div class="stat"><b>' + todayReads + '</b><span>오늘 열람</span></div>' +
     '<div class="stat"><b>' + weekN + '</b><span>7일 속도</span></div>' +
+    (weekBest ? '<div class="stat"><b>' + weekBest + '</b><span>7일 최고</span></div>' : '') +
     '<div class="stat"><b>' + shares + '</b><span>공유</span></div>';
 }
 function offerSharePeak(reading) {
