@@ -716,7 +716,7 @@ function showMoneyPipe() {
     if (host) host.appendChild(el);
   }
   el.innerHTML =
-    '<div style="color:#e0b552;font-weight:700;font-size:14px;margin-bottom:6px">💎 오늘의 흐름 더 깊게 · 정진</div>' +
+    '<div style="color:#e0b552;font-weight:700;font-size:14px;margin-bottom:6px">💎 오늘의 흐름 더 깊게 · 정진 1방</div>' +
     '<p style="font-size:12px;opacity:.8;margin:0 0 10px">엔터테인먼트 후원 · 투자 권유 아님 · 운명 확정 아님 · 18+ 권장 · 미꾸라지</p>' +
     '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">' +
     '<button type="button" class="primary-cta" onclick="unlockPremium()">상세 풀이 (가상)</button>' +
