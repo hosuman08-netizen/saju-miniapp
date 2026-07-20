@@ -1,4 +1,4 @@
-const SHARE_URL = 'https://hosuman08-netizen.github.io/saju-miniapp/?utm_source=share&utm_medium=app';
+const SHARE_BASE = 'https://hosuman08-netizen.github.io/saju-miniapp/';
 // p20 Saju Mini + p21 cross + p6 + p10 + Fate Codex
 // LILITH PSYCH + FULL-CHEAT: daily fate windows, surprise multipliers, pity, endowment on personal Codex relics, FOMO limited banners, variable ratio + near-miss in readings
 // Internal raw psych. Public: fictional entertainment only + layered prominent disclosure. 미꾸라지.
@@ -8,6 +8,33 @@ const STREAK_KEY = 'sajuStreak';
 const SHARE_COUNT_KEY = 'sajuShareCount';
 let pityStreak = parseInt(localStorage.getItem('sajuPity') || '0');
 let baseLuck = parseFloat(localStorage.getItem('sajuBaseLuck') || '1.0');
+
+function sajuKId() {
+  try {
+    var id = localStorage.getItem('saju_k_id');
+    if (!id) { id = 's' + Math.random().toString(36).slice(2, 8); localStorage.setItem('saju_k_id', id); }
+    return id;
+  } catch (e) { return 'share'; }
+}
+function getShareUrl() {
+  return SHARE_BASE + '?utm_source=share&utm_medium=app&ref=' + encodeURIComponent(sajuKId());
+}
+// compat: many call sites use SHARE_URL as string — keep live getter alias
+Object.defineProperty(window, 'SHARE_URL', { get: function () { return getShareUrl(); } });
+function captureSajuKRef() {
+  try {
+    var q = new URLSearchParams(location.search || '');
+    var ref = q.get('ref');
+    if (!ref || ref === 'share') return;
+    if (ref === sajuKId()) return;
+    if (!localStorage.getItem('saju_k_from')) {
+      localStorage.setItem('saju_k_from', ref);
+      var n = (parseInt(localStorage.getItem('saju_k_inbound') || '0', 10) || 0) + 1;
+      localStorage.setItem('saju_k_inbound', String(n));
+      if (window.legionTrack) try { legionTrack('k_link', { from: ref }); } catch (e) {}
+    }
+  } catch (e) {}
+}
 
 function todayKey() {
   const d = new Date();
@@ -888,7 +915,7 @@ function fateShare(fromCodex=false) {
   if (!codex.length) { alert('먼저 운세를 봐서 기록을 만들어 주세요.'); return; }
   const relic = fromCodex ? codex[0] : (JSON.parse(localStorage.getItem('readingLast')||'null') || codex[0]);
   const duo = '사주 + 타로 운세';
-  const story = `🌌 나의 운세 기록 — ${relic.text || '운명 기록'}\nLv${relic.relicLevel||1} 기운 ${relic.power||relic.score} • x${(relic.multi||1).toFixed(1)}\n${duo}\n\n이 기록이 나를 말해줘요. 당신의 운세도 기록해 보세요.\n가상 엔터테인먼트용 · 18+ · 실제 운명 조언 아님.\n\n#오늘의운세 #사주타로\n👉 ${SHARE_URL}`;
+  const story = `🌌 나의 운세 기록 — ${relic.text || '운명 기록'}\nLv${relic.relicLevel||1} 기운 ${relic.power||relic.score} • x${(relic.multi||1).toFixed(1)}\n${duo}\n\n이 기록이 나를 말해줘요. 당신의 운세도 기록해 보세요.\n가상 엔터테인먼트용 · 18+ · 실제 운명 조언 아님.\n\n#오늘의운세 #사주타로\n👉 ${getShareUrl()}`;
   // UGC: canvas export as relic card (beautiful shareable visual)
   const canvas = document.getElementById('saju-canvas') || document.createElement('canvas');
   let dataUrl = '';
@@ -942,7 +969,7 @@ function buildShareSummary() {
 // 공유 텍스트: 결과 요약 + 호기심 훅 + URL + 해시태그 (친구 톤·정직)
 function buildShareText() {
   const summary = buildShareSummary();
-  return `${summary} 너도 생년월일 넣고 봐봐 👀\n${SHARE_URL}\n#사주 #오늘의운세`;
+  return `${summary} 너도 생년월일 넣고 봐봐 👀\n${getShareUrl()}\n#사주 #오늘의운세`;
 }
 
 function showToast(msg) {
@@ -967,7 +994,7 @@ function shareResult() {
   // 내부 크로스 로직 유지 (유저에 코드네임 노출 없이 조용히 시딩)
   seedCrossOnShare();
   if (navigator.share) {
-    navigator.share({ title: '사주 명리 · 오늘의 운세', text, url: SHARE_URL })
+    navigator.share({ title: '사주 명리 · 오늘의 운세', text, url: getShareUrl() })
       .catch(() => copyShareFallback(text));
     return;
   }
@@ -1013,6 +1040,7 @@ window.shareResult = shareResult;
 window.shareToX = shareToX;
 
 window.onload = () => {
+  captureSajuKRef();
   updateFomo();
   initP21Link();
   renderStreak();
