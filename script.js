@@ -157,17 +157,24 @@ function updateFateWindows() {
   const wEl = document.getElementById('fateWindows');
   if (!wEl) return;
   const now = new Date();
-  const h = now.getHours();
+  const mins = now.getHours() * 60 + now.getMinutes();
   const windows = [
-    { id:0, label:'새벽 명궁', start:5, end:8 },
-    { id:1, label:'정오 대운', start:11, end:14 },
-    { id:2, label:'자정 흑월', start:21, end:23.5 }
+    { id:0, label:'새벽 명궁', start:5*60, end:8*60 },
+    { id:1, label:'정오 대운', start:11*60, end:14*60 },
+    { id:2, label:'자정 흑월', start:21*60, end:23*60+30 }
   ];
   let html = '';
   windows.forEach(w => {
-    const open = h >= w.start && h < w.end;
-    const closeIn = open ? Math.max(1, Math.floor(w.end - h)) : 0;
-    html += `<span class="win ${open?'open':'closed'}">${w.label} ${open ? `⏱ ${closeIn}시간 남음 · 열림` : '닫힘'}</span> `;
+    const open = mins >= w.start && mins < w.end;
+    let left = '';
+    if (open) {
+      const rem = w.end - mins;
+      const hh = Math.floor(rem / 60), mm = rem % 60;
+      left = `⏱ ${hh ? hh + '시간 ' : ''}${mm}분 남음 · 열림`;
+    } else {
+      left = '닫힘';
+    }
+    html += `<span class="win ${open?'open':'closed'}">${w.label} ${left}</span> `;
   });
   wEl.innerHTML = html + ' <small style="opacity:.55">재미로 보는 시간대 연출입니다</small>';
 }
@@ -898,13 +905,22 @@ function addCrossNavP20() {
 }
 
 function startRealFomoTimer() {
-  setInterval(() => {
-    const el = document.getElementById('fomo');
-    if (el) {
-      const left = Math.max(0, 86400 - (Date.now() % 86400000) / 1000 | 0);
-      if (freeLeft <= 0) el.textContent = `무료 소진 • ${Math.floor(left/3600)}h to reset`;
-    }
-  }, 45000);
+  const tick = () => {
+    try {
+      updateFateWindows();
+      const el = document.getElementById('fomo');
+      if (!el) return;
+      const now = new Date();
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+      const sec = Math.max(0, Math.floor((end - now) / 1000));
+      const hh = Math.floor(sec / 3600), mm = Math.floor((sec % 3600) / 60);
+      if (freeLeft <= 0) {
+        el.textContent = `무료 소진 • 리셋 ${hh}시간 ${mm}분`;
+      }
+    } catch (e) {}
+  };
+  tick();
+  setInterval(tick, 30000);
 }
 
 // === NIOBE VIRAL UPGRADE: p20/p21 "Fate Share" (Codex relic export + surprise story share) ===
