@@ -676,6 +676,7 @@
 
     exportCanvas(cv, mode === 'match' ? '사주궁합' : '사주명식');
     if (window.legionTrack) window.legionTrack('share', { kind: mode === 'match' ? 'gunghap_card' : 'myeongsik_card' });
+    try{ var sk='saju_share_day_'+ (function(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();})(); localStorage.setItem(sk,String((+(localStorage.getItem(sk)||0))+1)); }catch(e){}
   }
 
   function drawPillars(x, c, W, top) {
@@ -802,7 +803,8 @@
       var clock=Math.floor(remM/60)+'h '+(remM%60)+'m';
       var ready=!st.shieldLast||((new Date()-new Date(st.shieldLast||0))/86400000)>=7;
       var line=''; try{ if(localStorage.getItem('saju_today_key')===(function(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();})()) line=localStorage.getItem('saju_today_line')||''; }catch(e){}
-      box.innerHTML = '<span style="font-size:12px;width:100%;opacity:.75">🔥 '+(st.count||0)+'일'+( (st.count||0)>=3&&ready?' 🛡️':'')+' · 조회 '+reads+' · 리셋 '+clock+' · 최근 탭</span>' +
+      var shareN='0'; try{ var _d=new Date(); var _sk='saju_share_day_'+_d.getFullYear()+'-'+(_d.getMonth()+1)+'-'+_d.getDate(); shareN=localStorage.getItem(_sk)||'0'; }catch(e){}
+      box.innerHTML = '<span style="font-size:12px;width:100%;opacity:.75">🔥 '+(st.count||0)+'일'+( (st.count||0)>=3&&ready?' 🛡️':'')+' · 조회 '+reads+' · 오늘공유 '+shareN+' · 리셋 '+clock+' · 최근 탭</span>' +
         (line?'<span style="font-size:12px;width:100%;color:#e0b552;margin:4px 0">오늘 한 줄 · '+String(line).replace(/</g,'&lt;')+'</span>':'') +
         rec.map(function (r, i) {
           return '<button type="button" data-ri="'+i+'" style="padding:6px 10px;border-radius:999px;border:1px solid #c5a46e55;background:#16121c;color:#ece8f1;font-size:12px;cursor:pointer">' +
