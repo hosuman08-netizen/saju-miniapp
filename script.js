@@ -180,7 +180,7 @@ function updateFomo() {
   const el = document.getElementById('fomo');
   const today = new Date().toDateString();
   const saved = localStorage.getItem('sajuFomo');
-  if (saved !== today) { freeLeft = 1; localStorage.setItem('sajuFomo', today); pityStreak = 0; localStorage.setItem('sajuPity', '0'); }
+  if (saved !== today) { freeLeft = 1; localStorage.setItem('sajuFomo', today); /*오늘 리셋*/ pityStreak = 0; localStorage.setItem('sajuPity', '0'); }
   el.textContent = freeLeft > 0 ? `오늘 무료 ${freeLeft}회 남음 • 기운 ${ (baseLuck*100|0) }%` : '오늘 무료 소진 (프리미엄 추천)';
   updateFateWindows();
 }
