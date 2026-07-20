@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>사주 명리 · 오늘의 운세 — 생년월일로 보는 팔자와 오행</title>
-  <meta name="description" content="생년월일시를 넣으면 사주 팔자와 오행을 뽑아 오늘의 운세를 읽어주는 미니앱. 재미로 보는 AI 엔터테인먼트 풀이입니다.">
+  <title>사주 명리 · 정통 만세력 — 명식·십신·대운·궁합</title>
+  <meta name="description" content="생년월일시를 넣으면 정통 만세력으로 사주 명식(천간지지·십신·십이운성·지장간·공망·신살)과 대운·세운·궁합까지 뽑아주는 미니앱. 절입시각 분 단위 계산 + 진태양시·서머타임 보정. 재미로 보는 엔터테인먼트 풀이입니다.">
   <link rel="canonical" href="https://hosuman08-netizen.github.io/saju-miniapp/">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://hosuman08-netizen.github.io/saju-miniapp/">
-  <meta property="og:title" content="사주 명리 · 오늘의 운세">
-  <meta property="og:description" content="생년월일시로 사주 팔자와 오행을 뽑아 오늘의 운세를 읽는 미니앱. 재미로 보는 AI 엔터테인먼트 풀이.">
+  <meta property="og:title" content="사주 명리 · 정통 만세력">
+  <meta property="og:description" content="명식·십신·십이운성·신살·대운·세운·궁합까지. 절입시각 분 단위 + 진태양시·서머타임 보정.">
   <meta property="og:locale" content="ko_KR">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="사주 명리 · 오늘의 운세">
-  <meta name="twitter:description" content="생년월일시로 사주 팔자와 오행을 뽑아 오늘의 운세를 읽는 미니앱. 재미로 보는 AI 엔터테인먼트 풀이.">
+  <meta name="twitter:title" content="사주 명리 · 정통 만세력">
+  <meta name="twitter:description" content="명식·십신·십이운성·신살·대운·세운·궁합까지. 절입시각 분 단위 + 진태양시·서머타임 보정.">
 
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
@@ -25,50 +25,127 @@
 <body>
   <header>
     <h1>사주 명리</h1>
-    <p class="tag">태어난 순간의 여덟 글자, 오늘의 운을 읽다</p>
+    <p class="tag">태어난 순간의 여덟 글자, 그 안의 흐름을 읽다</p>
     <div class="fomo" id="fomo">오늘 무료 1회 남음</div>
-    <div id="fateWindows" style="font-size:0.7rem;margin:6px 0;color:#c99"></div>
-    <div id="limitedBanner" style="display:none;background:#1f1512;color:#e8b98a;padding:4px 10px;border:1px solid #7a5a3a;border-radius:999px;font-size:0.7rem;margin:6px auto;width:fit-content">🌑 흑월 운세 — 오늘 한정 (가상)</div>
+    <div id="fateWindows" class="fate-windows"></div>
+    <div id="limitedBanner" class="limited-banner">🌑 흑월 운세 — 오늘 한정 (가상)</div>
   </header>
 
   <main>
     <section id="input">
-      <h2>생년월일 입력</h2>
-      <div class="form">
-        <input type="date" id="birth" value="1990-01-01">
-        <input type="time" id="time" value="12:00">
-        <select id="gender"><option value="m">남</option><option value="f">여</option></select>
-        <button onclick="generateSaju()">사주 차트 생성</button>
+      <h2>생년월일시 입력</h2>
+      <div class="input-summary" id="inputSummary" onclick="SajuUI.editInput()" role="button" tabindex="0">
+        <span id="summaryText"></span><span class="edit-link">수정</span>
+      </div>
+      <div class="form" id="inputForm">
+        <div class="field">
+          <label for="birth">생년월일 (양력)</label>
+          <input type="date" id="birth" value="1990-01-01" min="1900-01-01" max="2100-12-31">
+        </div>
+        <div class="field">
+          <label for="time">태어난 시각</label>
+          <input type="time" id="time" value="12:00">
+        </div>
+        <div class="field">
+          <label for="gender">성별 <span class="why">대운 순행/역행 판정에 쓰입니다</span></label>
+          <select id="gender"><option value="m">남</option><option value="f">여</option></select>
+        </div>
+        <div class="field">
+          <label for="city">태어난 곳 <span class="why">진태양시 경도 보정</span></label>
+          <select id="city"></select>
+        </div>
+        <label class="check"><input type="checkbox" id="timeUnknown"> 태어난 시각을 모릅니다 <span class="why">시주 제외하고 계산</span></label>
+        <details class="adv">
+          <summary>계산 기준 설정</summary>
+          <div class="adv-body">
+            <label class="check-inline">자시(子時) 기준
+              <select id="jaSchool">
+                <option value="조자시">조자시설 — 23:00부터 다음 날 일주</option>
+                <option value="야자시">야자시설 — 자정부터 다음 날 일주</option>
+              </select>
+            </label>
+            <p class="note">두 학파 모두 실제로 쓰입니다. 어느 쪽을 적용했는지 결과에 함께 표기합니다.</p>
+            <label class="check"><input type="checkbox" id="optLon" checked> 경도(진태양시) 보정 적용</label>
+            <label class="check"><input type="checkbox" id="optEot" checked> 균시차 보정 적용</label>
+          </div>
+        </details>
+        <button onclick="SajuUI.generate()" class="primary-cta wide">명식 뽑기</button>
       </div>
     </section>
 
-    <section id="chart" style="display:none">
-      <h2>사주 팔자</h2>
-      <div id="pillars" class="pillars"></div>
-      <canvas id="saju-canvas" style="display:block;width:100%;max-width:340px;height:200px;margin:10px auto;border-radius:12px;background:#0a0806;box-shadow:0 4px 20px rgba(224,181,82,0.08)"></canvas>
-      <div id="elements"></div>
-      <button onclick="doReading()" class="primary-cta">오늘의 운세 보기</button>
-      <button onclick="voiceReading()" class="secondary">🎤 음성으로 듣기</button>
-      <button onclick="unlockPremium()" class="secondary">프리미엄 상세 풀이</button>
+    <section id="chart" class="hidden">
+      <div id="hero"></div>
+
+      <nav class="tabs" id="tabs" role="tablist">
+        <button class="tab active" data-tab="t-myeongsik" role="tab">명식</button>
+        <button class="tab" data-tab="t-sipsin" role="tab">십신·신살</button>
+        <button class="tab" data-tab="t-daeun" role="tab">대운·세운</button>
+        <button class="tab" data-tab="t-gunghap" role="tab">궁합</button>
+        <button class="tab" data-tab="t-basis" role="tab">계산 근거</button>
+      </nav>
+
+      <div id="t-myeongsik" class="panel active">
+        <div id="myeongsik"></div>
+        <canvas id="saju-canvas" width="680" height="400"></canvas>
+        <div id="elements"></div>
+        <div class="cta-stack">
+          <button onclick="doReading()" class="primary-cta wide">오늘의 운세 보기</button>
+          <div class="btn-row">
+            <button onclick="voiceReading()" class="secondary">🎤 음성으로 듣기</button>
+            <button onclick="SajuUI.shareCard()" class="secondary">🖼️ 명식 카드 저장</button>
+            <button onclick="unlockPremium()" class="secondary">상세 풀이</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="t-sipsin" class="panel"><div id="sipsinBody"></div></div>
+      <div id="t-daeun" class="panel"><div id="daeunBody"></div></div>
+
+      <div id="t-gunghap" class="panel">
+        <div class="gunghap-intro">
+          <h3>궁합 보기</h3>
+          <p class="note">상대의 생년월일시를 넣으면 두 명식을 나란히 놓고 일간·일지·용신·오행으로 대조합니다.</p>
+        </div>
+        <div class="form compact">
+          <div class="field">
+            <label for="pBirth">상대 생년월일</label>
+            <input type="date" id="pBirth" value="1992-01-01" min="1900-01-01" max="2100-12-31">
+          </div>
+          <div class="field">
+            <label for="pTime">상대 시각</label>
+            <input type="time" id="pTime" value="12:00">
+          </div>
+          <div class="field">
+            <label for="pGender">상대 성별</label>
+            <select id="pGender"><option value="f">여</option><option value="m">남</option></select>
+          </div>
+          <button onclick="SajuUI.matchRun()" class="primary-cta wide">궁합 보기</button>
+        </div>
+        <div id="gunghapBody"></div>
+      </div>
+
+      <div id="t-basis" class="panel"><div id="basisBody"></div></div>
     </section>
 
-    <section id="reading" style="display:none">
+    <section id="reading" class="hidden">
       <h2>운세 결과</h2>
       <div id="readingText" class="card"></div>
       <div class="surprise" id="surprise"></div>
       <div class="share-row">
-        <button onclick="shareResult()" class="primary-cta">📤 결과 공유</button>
+        <button onclick="SajuUI.shareCard()" class="primary-cta">🖼️ 카드로 저장·공유</button>
+        <button onclick="shareResult()" class="secondary">📤 링크 복사</button>
         <button onclick="shareToX()" class="secondary share-x">𝕏 로 공유</button>
       </div>
-      <div style="font-size:0.65rem;opacity:0.6;margin-top:8px">엔터테인먼트용 가상 풀이입니다 · 실제 운명 조언 아님 · 18+</div>
+      <p class="disclaimer">엔터테인먼트용 풀이입니다 · 명식 계산은 정통 만세력 알고리즘, 해석은 재미로 보는 것입니다 · 의료·법률·투자 조언 아님</p>
     </section>
 
     <section id="codex">
-      <h2>운명의 서 — 나의 운세 기록</h2>
+      <h2>운명의 서 — 나의 기록</h2>
       <div id="codexList"></div>
-      <button onclick="showCodex()" class="secondary">기록 다시 보기 (기록 강화)</button>
-      <button onclick="shareResult()" class="secondary" style="margin-top:4px;">📤 결과 공유</button>
-      <div style="font-size:0.65rem;opacity:0.55">기록을 누르면 더 선명해집니다 · 모두 가상 · 엔터테인먼트용</div>
+      <div class="btn-row">
+        <button onclick="showCodex()" class="secondary">기록 다시 보기</button>
+      </div>
+      <p class="disclaimer">기록을 누르면 더 선명해집니다 · 엔터테인먼트용</p>
     </section>
   </main>
 
@@ -78,11 +155,15 @@
   </nav>
 
   <footer>
-    <small>Entertainment only. AI fictional readings. Prominent disclosure.</small>
+    <small>명식 계산은 결정적 알고리즘(VSOP87 절입시각 · 진태양시 보정)으로 산출합니다. 해석은 엔터테인먼트 목적의 풀이입니다.</small>
   </footer>
 
+  <div id="toast"></div>
+
   <script src="lung-surprise-eye.js"></script>
+  <script src="saju-pro.js"></script>
   <script src="script.js"></script>
+  <script src="saju-ui.js"></script>
 <script>window.LEGION_APP='saju-miniapp';window.LEGION_ANALYTICS_URL='https://legion-analytics.hoyashi95.workers.dev';</script>
 <script src="legion-beacon.js"></script>
 </body>

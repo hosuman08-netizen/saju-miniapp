@@ -19,6 +19,11 @@ if [ -f test/runtime-check.js ]; then
   if node test/runtime-check.js >/tmp/mini-rt.log 2>&1; then echo "  ✅ 런타임 클린"; else echo "  🔴 런타임 크래시:"; tail -6 /tmp/mini-rt.log | sed 's/^/    /'; FAIL=1; fi
 else echo "  ⚪ runtime-check.js 없음(앱 조립 후 추가) — 스킵"; fi
 
+echo "── 3-2) 도메인 엔진 회귀"
+if [ -f test/engine-check.js ]; then
+  if node test/engine-check.js >/tmp/mini-engine.log 2>&1; then echo "  ✅ 명리 엔진 회귀 통과"; else echo "  🔴 엔진 회귀 실패:"; grep '❌' /tmp/mini-engine.log | head -8 | sed 's/^/    /'; FAIL=1; fi
+else echo "  ⚪ engine-check.js 없음 — 스킵"; fi
+
 echo "── 4) 계측 계약"
 if [ -f ALLOWED.txt ]; then
   MISS=""

@@ -1,7 +1,10 @@
 // 붕어빵 앱 범용 런타임 크래시 게이트 — vm+DOM+TG목(세션 독립). p2에서 검증됨.
 // 앱 조립 후 out/<app>/test/runtime-check.js 로 복사. ENTRY_JS = 앱 진입 스크립트(기본 script.js).
 const fs = require('fs'), vm = require('vm');
-const ENTRY = process.env.ENTRY_JS || 'script.js';   // 앱 진입 스크립트(ENTRY_JS env로 오버라이드)
+// 로드 순서가 있는 앱은 SCRIPTS(쉼표구분)로 지정. 기본은 index.html 로드 순서와 동일.
+const ENTRY = process.env.ENTRY_JS || 'script.js';
+const SCRIPTS = (process.env.SCRIPTS || 'saju-pro.js,script.js,saju-ui.js').split(',')
+  .map(function(x){return x.trim()}).filter(Boolean);
 function mockEl(){
   const e = { textContent:'', innerHTML:'', value:'', dataset:{}, style:new Proxy({},{get(t,k){if(k==='removeProperty'||k==='setProperty'||k==='getPropertyValue')return ()=>'';return t[k]??'';},set(t,k,v){t[k]=v;return true}}),
     classList:{add(){},remove(){},toggle(){},contains(){return false}}, offsetWidth:100, clientWidth:360, width:360, height:360,
@@ -31,12 +34,28 @@ sb.addEventListener=()=>{}; sb.removeEventListener=()=>{}; sb.scrollTo=()=>{}; s
 sb.alert=()=>{}; sb.confirm=()=>true; sb.prompt=()=>'';
 vm.createContext(sb);
 let fail=0;
-if(!fs.existsSync(ENTRY)){ console.log('⚪ 진입스크립트 없음('+ENTRY+') — 앱 조립 후 실행'); process.exit(0); }
-try{ vm.runInContext(fs.readFileSync(ENTRY,'utf8'),sb,{filename:ENTRY}); console.log('LOAD',ENTRY,'✅'); }
-catch(e){ fail++; console.log('LOAD ERROR',ENTRY,'❌',e.message,'\n',(e.stack||'').split('\n').slice(0,3).join('\n')); }
+const toLoad = SCRIPTS.filter(function(f){return fs.existsSync(f)});
+if(!toLoad.length){ console.log('⚪ 진입스크립트 없음('+ENTRY+') — 앱 조립 후 실행'); process.exit(0); }
+toLoad.forEach(function(f){
+  try{ vm.runInContext(fs.readFileSync(f,'utf8'),sb,{filename:f}); console.log('LOAD',f,'✅'); }
+  catch(e){ fail++; console.log('LOAD ERROR',f,'❌',e.message,'\n',(e.stack||'').split('\n').slice(0,3).join('\n')); }
+});
 const T = `(function(){ var R=[];
   function tryFn(l,f){ try{ f(); R.push('✅ '+l); }catch(e){ R.push('❌ '+l+' — '+e.message); } }
   tryFn('window.onload(부팅)', function(){ if(typeof window.onload==='function') window.onload(); });
+  tryFn('명식 계산(computePro)', function(){
+    var c = window.SajuPro.computePro(1990,5,15,14,30,{});
+    if(!c.day || !c.dayMaster) throw new Error('명식 미생성');
+  });
+  tryFn('명식 파생(십신·신살·대운·궁합)', function(){
+    var SP = window.SajuPro, c = SP.computePro(1990,5,15,14,30,{});
+    SP.fullChart(c); SP.analyzePro(c); SP.tenGodCount(c); SP.relations(c);
+    SP.gyeokguk(c); SP.daeun(c,'m'); SP.seun(c,2026,10);
+    SP.compatibility(c, SP.computePro(1992,8,3,7,20,{}));
+  });
+  tryFn('명식 렌더(SajuUI.generate)', function(){
+    if(typeof window.SajuUI.generate !== 'function') throw new Error('SajuUI.generate 없음');
+  });
   globalThis.__R=R; })();`;
 var testThrew=false;
 try{ vm.runInContext(T, sb, {filename:'test'}); }catch(e){ console.log('TEST BLOCK THREW', e.message); testThrew=true; }

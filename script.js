@@ -65,7 +65,7 @@ function updateFateWindows() {
     const closeIn = open ? Math.max(1, Math.floor(w.end - h)) : 0;
     html += `<span class="win ${open?'open':'closed'}">${w.label} ${open ? `⏱ ${closeIn}시간 남음 · 열림` : '닫힘'}</span> `;
   });
-  wEl.innerHTML = html + ' <small style="opacity:.6">(fictional windows • prominent disclosure)</small>';
+  wEl.innerHTML = html + ' <small style="opacity:.55">재미로 보는 시간대 연출입니다</small>';
 }
 
 // =====================================================================
@@ -350,8 +350,8 @@ function generateSaju() {
         ${gender === 'f' ? '' : ''}</p>
     </div>`;
 
-  document.getElementById('chart').style.display = 'block';
-  document.getElementById('reading').style.display = 'none';
+  document.getElementById('chart').classList.remove('hidden');
+  document.getElementById('reading').classList.add('hidden');
   const pillarsText = document.getElementById('pillars').textContent || '';
   drawSajuCanvas(pillarsText, 70, A.cnt);
   if (window.p6LungSurpriseEye) console.log('[p20] p6 lung eye available for fate canvas');
@@ -374,7 +374,8 @@ function doReading() {
   else if (reading.multi > 1.25) sub = `✨ 오늘 기운의 결이 유난히 선명합니다 (공명 ${resPct}%).`;
   else if (reading.multi > 1.1) sub = `기운의 결 공명 ${resPct}% — 결이 또렷한 편입니다.`;
   document.getElementById('surprise').innerHTML = sub;
-  document.getElementById('reading').style.display = 'block';
+  document.getElementById('reading').classList.remove('hidden');
+  document.getElementById('reading').scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (freeLeft > 0) freeLeft--;
   updateFomo();
   localStorage.setItem('readingLast', JSON.stringify(reading));
@@ -917,9 +918,7 @@ window.onload = () => {
   showCodex();
   startRealFomoTimer();
   addCrossNavP20();
-  // Layered prominent disclosure (미꾸라지)
-  const foot = document.querySelector('footer');
-  if (foot) foot.innerHTML = `<small>FICTIONAL AI ENTERTAINMENT ONLY • NO REAL ADVICE • 18+ • PURE STORY • Prominent disclosure on every action. Reversible. NO kompu.</small>`;
+  // 고지는 index.html의 한국어 문구를 그대로 둔다 (영어 개발용 문구로 덮어쓰지 않음)
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   // hook mutation after first reading
   setTimeout(() => { if (document.getElementById('readingText')) mutateSharedFate('init', 3); }, 1200);
