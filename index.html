@@ -27,6 +27,7 @@
     <h1>사주 명리</h1>
     <p class="tag">태어난 순간의 여덟 글자, 그 안의 흐름을 읽다</p>
     <div class="fomo" id="fomo">오늘 무료 1회 남음</div>
+    <p class="streak" id="streak" aria-live="polite"></p>
     <div id="fateWindows" class="fate-windows"></div>
     <div id="limitedBanner" class="limited-banner">🌑 흑월 운세 — 오늘 한정 (가상)</div>
   </header>
@@ -141,6 +142,7 @@
 
     <section id="codex">
       <h2>운명의 서 — 나의 기록</h2>
+      <div class="mini-dash" id="miniDash" aria-label="나의 기록 요약"></div>
       <div id="codexList"></div>
       <div class="btn-row">
         <button onclick="showCodex()" class="secondary">기록 다시 보기</button>
@@ -155,7 +157,11 @@
   </nav>
 
   <footer>
-    <small>명식 계산은 결정적 알고리즘(VSOP87 절입시각 · 진태양시 보정)으로 산출합니다. 해석은 엔터테인먼트 목적의 풀이입니다.</small>
+    <nav class="foot-nav" aria-label="도움">
+      <a href="mailto:hoyashi95@gmail.com?subject=%5B%EC%82%AC%EC%A3%BC%20%EB%AA%85%EB%A6%AC%5D%20%ED%94%BC%EB%93%9C%EB%B0%B1">피드백 보내기</a>
+      <a href="https://hosuman08-netizen.github.io/tarot-oracle/">타로 오라클</a>
+    </nav>
+    <small>명식 계산은 결정적 알고리즘(VSOP87 절입시각 · 진태양시 보정)으로 산출합니다. 해석은 엔터테인먼트 목적의 풀이입니다. · 18+</small>
   </footer>
 
   <div id="toast"></div>

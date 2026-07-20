@@ -4,8 +4,84 @@ const SHARE_URL = 'https://hosuman08-netizen.github.io/saju-miniapp/';
 // Internal raw psych. Public: fictional entertainment only + layered prominent disclosure. 미꾸라지.
 let freeLeft = 1;
 const CODEX_KEY = 'fateCodex';
+const STREAK_KEY = 'sajuStreak';
+const SHARE_COUNT_KEY = 'sajuShareCount';
 let pityStreak = parseInt(localStorage.getItem('sajuPity') || '0');
 let baseLuck = parseFloat(localStorage.getItem('sajuBaseLuck') || '1.0');
+
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function bumpStreak() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  if (!s || typeof s !== 'object') s = { last: null, count: 0, best: 0 };
+  const t = todayKey();
+  if (s.last === t) { renderStreak(); return s; }
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const yk = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+  s.count = (s.last === yk) ? (s.count || 0) + 1 : 1;
+  s.best = Math.max(s.best || 0, s.count);
+  s.last = t;
+  localStorage.setItem(STREAK_KEY, JSON.stringify(s));
+  renderStreak();
+  if (window.legionTrack) try { window.legionTrack('streak', { count: s.count, best: s.best }); } catch (e) {}
+  return s;
+}
+function renderStreak() {
+  const el = document.getElementById('streak');
+  if (!el) return;
+  let s;
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
+  if (!codex.length) {
+    el.textContent = '아직 기록이 없어요 — 명식을 뽑고 운세를 열어보세요';
+    return;
+  }
+  const count = s.count || 0;
+  const best = s.best || 0;
+  el.textContent = count + '일 연속 · 기록 ' + codex.length + '개'
+    + (best > count ? ' · 최장 ' + best + '일' : '');
+}
+function renderMiniDash() {
+  const el = document.getElementById('miniDash');
+  if (!el) return;
+  const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
+  let s;
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  const shares = parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0;
+  const today = todayKey();
+  const todayReads = codex.filter(c => (c.ts || '').slice(0, 10) === today).length;
+  el.innerHTML =
+    '<div class="stat"><b>' + (s.count || 0) + '</b><span>연속 일</span></div>' +
+    '<div class="stat"><b>' + codex.length + '</b><span>총 기록</span></div>' +
+    '<div class="stat"><b>' + todayReads + '</b><span>오늘 열람</span></div>' +
+    '<div class="stat"><b>' + shares + '</b><span>공유</span></div>';
+}
+function offerSharePeak(reading) {
+  const host = document.getElementById('reading');
+  if (!host) return;
+  let peak = document.getElementById('sharePeak');
+  if (!peak) {
+    peak = document.createElement('div');
+    peak.id = 'sharePeak';
+    peak.className = 'share-peak';
+    host.appendChild(peak);
+  }
+  const score = (reading && reading.score) || 70;
+  const line = score >= 82
+    ? '오늘 결이 선명해요 — 지금 카드로 공유하면 가장 예쁘게 남아요'
+    : '결과가 나왔어요 — 친구에게 한 장 보내볼까요?';
+  peak.innerHTML = '<p>✨ ' + line + '</p>'
+    + '<div class="share-row">'
+    + '<button type="button" class="primary-cta" onclick="SajuUI.shareCard && SajuUI.shareCard(); if(window.legionTrack)legionTrack(\'share_peak\')">🖼️ 카드 공유</button>'
+    + '<button type="button" class="secondary" onclick="shareResult()">📤 링크</button>'
+    + '<button type="button" class="secondary" onclick="document.getElementById(\'sharePeak\').style.display=\'none\'">나중에</button>'
+    + '</div>';
+  peak.style.display = 'block';
+  if (window.legionTrack) try { window.legionTrack('share_peak_shown', { score: score }); } catch (e) {}
+}
 
 const LilithPsych = {
   resonance: 0.5,
@@ -381,6 +457,11 @@ function doReading() {
   updateFomo();
   localStorage.setItem('readingLast', JSON.stringify(reading));
   recordToCodex('saju', reading.plain || reading.text, reading.score, reading);
+  bumpStreak();
+  renderMiniDash();
+  // share-at-peak: result moment = highest intent to share (Contagious + Niobe)
+  setTimeout(() => offerSharePeak(reading), 480);
+  if (window.legionTrack) try { window.legionTrack('first_read', { score: reading.score }); } catch (e) {}
   // loss if no window active
   const inWindow = document.querySelector('#fateWindows .open');
   if (!inWindow) LilithPsych.applyLoss(true);
@@ -573,8 +654,17 @@ function recordToCodex(type, text, score, extra={}) {
 
 function showCodex() {
   const list = document.getElementById('codexList');
+  if (!list) return;
   const codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
-  if (!codex.length) { list.innerHTML = '<div class="card">아직 기록이 없어요 — 운세를 보면 여기에 쌓입니다.</div>'; return; }
+  renderMiniDash();
+  renderStreak();
+  if (!codex.length) {
+    list.innerHTML = '<div class="card empty-cta">'
+      + '<p>아직 기록이 없어요.<br>명식을 뽑고 오늘의 운세를 열면 여기에 쌓입니다.</p>'
+      + '<button type="button" class="primary-cta" onclick="document.getElementById(\'input\').scrollIntoView({behavior:\'smooth\'});const b=document.querySelector(\'#input .primary-cta\');if(b)b.focus()">명식 뽑으러 가기</button>'
+      + '</div>';
+    return;
+  }
   const TYPE_LABEL = { 'saju':'사주', 'saju-premium':'상세 풀이', '타로융합':'타로융합' };
   list.innerHTML = codex.map((c,i) => {
     const lv = c.relicLevel || 1;
@@ -869,6 +959,11 @@ function shareResult() {
   const text = buildShareText();
   // 계측: 결과 공유 클릭 = 바이럴
   if (window.legionTrack) window.legionTrack('share');
+  try {
+    const n = (parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0) + 1;
+    localStorage.setItem(SHARE_COUNT_KEY, String(n));
+    renderMiniDash();
+  } catch (e) {}
   // 내부 크로스 로직 유지 (유저에 코드네임 노출 없이 조용히 시딩)
   seedCrossOnShare();
   if (navigator.share) {
@@ -893,6 +988,11 @@ function copyShareFallback(text) {
 function shareToX() {
   // 계측: X 공유 클릭 = 바이럴
   if (window.legionTrack) window.legionTrack('share');
+  try {
+    const n = (parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0) + 1;
+    localStorage.setItem(SHARE_COUNT_KEY, String(n));
+    renderMiniDash();
+  } catch (e) {}
   seedCrossOnShare();
   const text = buildShareText();
   const url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
@@ -915,6 +1015,8 @@ window.shareToX = shareToX;
 window.onload = () => {
   updateFomo();
   initP21Link();
+  renderStreak();
+  renderMiniDash();
   showCodex();
   startRealFomoTimer();
   addCrossNavP20();
