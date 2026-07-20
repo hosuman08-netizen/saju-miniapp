@@ -1057,6 +1057,17 @@ function showToast(msg) {
 }
 
 // 유저용 결과 공유 버튼 핸들러
+function shareRefill(){
+  try{
+    var k='sajuShareRefill_'+todayKey();
+    if(localStorage.getItem(k)) return false;
+    freeLeft = Math.max(freeLeft, 1);
+    localStorage.setItem(k,'1');
+    updateFomo && updateFomo();
+    if(window.legionTrack) try{legionTrack('share_refill',{})}catch(e){}
+    return true;
+  }catch(e){return false;}
+}
 function shareResult() {
   const text = buildShareText();
   // 계측: 결과 공유 클릭 = 바이럴
