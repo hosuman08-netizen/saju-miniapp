@@ -108,6 +108,35 @@ function exportCodexJSON() {
     if (window.legionTrack) legionTrack('export', { n: codex.length });
   } catch (e) {}
 }
+function importCodexJSON(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = function () {
+    try {
+      const p = JSON.parse(r.result);
+      const arr = Array.isArray(p) ? p : (p && Array.isArray(p.codex) ? p.codex : null);
+      if (!arr || !arr.length) throw new Error('empty');
+      const cur = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
+      const ids = {};
+      cur.forEach(function (c) { if (c && c.id) ids[c.id] = 1; });
+      const merged = cur.slice();
+      arr.forEach(function (c) {
+        if (!c) return;
+        if (c.id && ids[c.id]) return;
+        if (c.id) ids[c.id] = 1;
+        merged.push(c);
+      });
+      localStorage.setItem(CODEX_KEY, JSON.stringify(merged.slice(0, 300)));
+      renderStreak(); renderMiniDash();
+      if (typeof showCodex === 'function') showCodex();
+      if (window.legionTrack) legionTrack('import', { n: arr.length });
+      if (typeof showToast === 'function') showToast('기록 ' + arr.length + '건 병합 복원');
+    } catch (e) {
+      alert('JSON 형식을 확인해 주세요 (백업 파일 권장)');
+    }
+  };
+  r.readAsText(file);
+}
 function renderStreak() {
   const el = document.getElementById('streak');
   if (!el) return;
@@ -115,7 +144,10 @@ function renderStreak() {
   try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
   const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
   if (!codex.length) {
-    el.textContent = '아직 기록이 없어요 — 명식을 뽑고 운세를 열어보세요';
+    el.innerHTML = '아직 기록이 없어요 — 명식을 뽑고 운세를 열어보세요'
+      + ' <label class="secondary" style="margin-left:6px;padding:2px 8px;font-size:11px;cursor:pointer">⬆ 복원<input id="sajuImportEmpty" type="file" accept="application/json,.json" style="display:none"/></label>';
+    const ie = document.getElementById('sajuImportEmpty');
+    if (ie) ie.onchange = function () { if (ie.files && ie.files[0]) importCodexJSON(ie.files[0]); ie.value = ''; };
     return;
   }
   const count = s.count || 0;
@@ -128,9 +160,12 @@ function renderStreak() {
     + ' · 7일 ' + weekN + '회 (' + weekBar + ')'
     + (best > count ? ' · 최장 ' + best + '일' : '')
     + (count >= 3 && shieldReady ? ' · 🛡️보호 1회' : (s.shieldLast ? ' · 🛡️사용됨' : ''))
-    + ' <button type="button" id="sajuExportBtn" class="secondary" style="margin-left:6px;padding:2px 8px;font-size:11px">⬇ 기록 백업</button>';
+    + ' <button type="button" id="sajuExportBtn" class="secondary" style="margin-left:6px;padding:2px 8px;font-size:11px">⬇ 기록 백업</button>'
+    + ' <label class="secondary" style="margin-left:4px;padding:2px 8px;font-size:11px;cursor:pointer">⬆ 복원<input id="sajuImportBtn" type="file" accept="application/json,.json" style="display:none"/></label>';
   const xb = document.getElementById('sajuExportBtn');
   if (xb) xb.onclick = exportCodexJSON;
+  const ib = document.getElementById('sajuImportBtn');
+  if (ib) ib.onchange = function () { if (ib.files && ib.files[0]) importCodexJSON(ib.files[0]); ib.value = ''; };
 }
 function renderMiniDash() {
   const el = document.getElementById('miniDash');
