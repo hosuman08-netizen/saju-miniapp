@@ -86,12 +86,33 @@ function bumpStreak() {
   if (window.legionTrack) try { window.legionTrack('streak', { count: s.count, best: s.best, froze: !!bridged.froze }); } catch (e) {}
   return s;
 }
+function codexWeekN(codex) {
+  try {
+    const cut = Date.now() - 7 * 86400000;
+    return (codex || []).filter(function (c) {
+      const t = c && c.ts ? Date.parse(c.ts) : 0;
+      return t >= cut;
+    }).length;
+  } catch (e) { return 0; }
+}
+function exportCodexJSON() {
+  try {
+    const codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+    const payload = { app: 'saju-miniapp', exportedAt: new Date().toISOString(), codex: codex.slice(0, 200) };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'saju-codex-' + todayKey() + '.json';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+    if (window.legionTrack) legionTrack('export', { n: codex.length });
+  } catch (e) {}
+}
 function renderStreak() {
   const el = document.getElementById('streak');
   if (!el) return;
   let s;
   try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
-  try { if (s && s.best && el) el.textContent += (el.textContent ? ' · ' : '') + '최장 ' + s.best + '일 정진'; } catch (e) {}
   const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
   if (!codex.length) {
     el.textContent = '아직 기록이 없어요 — 명식을 뽑고 운세를 열어보세요';
@@ -99,10 +120,17 @@ function renderStreak() {
   }
   const count = s.count || 0;
   const best = s.best || 0;
+  const weekN = codexWeekN(codex);
+  const weekGoal = 7;
+  const weekBar = weekN >= weekGoal ? '✓' : (weekN + '/' + weekGoal);
   const shieldReady = !s.shieldLast || ((new Date(todayKey()) - new Date(s.shieldLast)) / 86400000) >= 7;
-  el.textContent = count + '일 연속 · 기록 ' + codex.length + '개'
+  el.innerHTML = count + '일 연속 · 기록 ' + codex.length + '개'
+    + ' · 7일 ' + weekN + '회 (' + weekBar + ')'
     + (best > count ? ' · 최장 ' + best + '일' : '')
-    + (count >= 3 && shieldReady ? ' · 🛡️보호 1회' : (s.shieldLast ? ' · 🛡️사용됨' : ''));
+    + (count >= 3 && shieldReady ? ' · 🛡️보호 1회' : (s.shieldLast ? ' · 🛡️사용됨' : ''))
+    + ' <button type="button" id="sajuExportBtn" class="secondary" style="margin-left:6px;padding:2px 8px;font-size:11px">⬇ 기록 백업</button>';
+  const xb = document.getElementById('sajuExportBtn');
+  if (xb) xb.onclick = exportCodexJSON;
 }
 function renderMiniDash() {
   const el = document.getElementById('miniDash');
@@ -113,10 +141,12 @@ function renderMiniDash() {
   const shares = parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0;
   const today = todayKey();
   const todayReads = codex.filter(c => (c.ts || '').slice(0, 10) === today).length;
+  const weekN = codexWeekN(codex);
   el.innerHTML =
     '<div class="stat"><b>' + (s.count || 0) + '</b><span>연속 일</span></div>' +
     '<div class="stat"><b>' + codex.length + '</b><span>총 기록</span></div>' +
     '<div class="stat"><b>' + todayReads + '</b><span>오늘 열람</span></div>' +
+    '<div class="stat"><b>' + weekN + '</b><span>7일 속도</span></div>' +
     '<div class="stat"><b>' + shares + '</b><span>공유</span></div>';
 }
 function offerSharePeak(reading) {
