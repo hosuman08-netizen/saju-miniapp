@@ -254,7 +254,7 @@ function generateSaju() {
   document.getElementById('chart').style.display = 'block';
   document.getElementById('reading').style.display = 'none';
   const pillarsText = document.getElementById('pillars').textContent || '';
-  drawSajuCanvas(pillarsText, 70);
+  drawSajuCanvas(pillarsText, 70, A.cnt);
   if (window.p6LungSurpriseEye) console.log('[p20] p6 lung eye available for fate canvas');
   // 계측: 사주 차트 생성 성공 = 활성화
   if (window.legionTrack) window.legionTrack('activate');
@@ -600,47 +600,60 @@ function mutateSharedFate(fromType, val) {
   console.log('[p20-p21] Shared fate mutation applied');
 }
 
-function drawSajuCanvas(pillarsText, score) {
+// 오행 5원소: 목(청)·화(적)·토(황)·금(백금)·수(흑청) — 상생 오각별 휠. 간지 재작성 + 레티나 선명.
+const WHEEL_EL = [
+  { k:'목', col:'#4ec97a', glow:'rgba(78,201,122,0.55)' },
+  { k:'화', col:'#ff6b5c', glow:'rgba(255,107,92,0.55)' },
+  { k:'토', col:'#e0b552', glow:'rgba(224,181,82,0.55)' },
+  { k:'금', col:'#dfe4ea', glow:'rgba(223,228,234,0.5)' },
+  { k:'수', col:'#5c8dff', glow:'rgba(92,141,255,0.5)' },
+];
+function drawSajuCanvas(pillarsText, score, dist) {
   const c = document.getElementById('saju-canvas');
   if (!c) return;
-  const ctx = c.getContext('2d', {alpha:true});
-  const w = c.width, h = c.height;
-  const cx = w * 0.5, cy = h * 0.618; // Vitruvian golden navel
+  // 레티나 선명화: CSS 크기 유지, 백버퍼 2x
+  const cssW = c.clientWidth || 300, cssH = c.clientHeight || 140;
+  const dpr = Math.min(3, window.devicePixelRatio || 2);
+  if (c.width !== Math.round(cssW*dpr)) { c.width = Math.round(cssW*dpr); c.height = Math.round(cssH*dpr); }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const w = cssW, h = cssH, cx = w*0.5, cy = h*0.52, R = Math.min(w,h)*0.34;
+  ctx.clearRect(0,0,w,h);
   ctx.fillStyle = '#0a0806'; ctx.fillRect(0,0,w,h);
 
-  // Sfumato soft wheel layers (Da Vinci restraint + 5 glazes)
-  for (let g=0; g<5; g++) {
-    const a = 0.18 - g*0.028;
-    ctx.strokeStyle = `hsla(42,58%,76%,${Math.max(0.04,a)})`;
-    ctx.lineWidth = 1.8 - g*0.18;
-    ctx.shadowBlur = 7 + g;
-    ctx.shadowColor = 'rgba(197,164,110,0.2)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 42 + g*3.2, 0, Math.PI*2);
-    ctx.stroke();
-  }
-  ctx.shadowBlur = 0;
+  // 은은한 배경 링(절제) — 흐릿한 덧칠 제거, 선명한 골드 서클
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(197,164,110,0.22)';
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.618,0,Math.PI*2); ctx.stroke();
 
-  // Golden spokes (one protagonist wheel)
-  ctx.strokeStyle = '#c5a46e'; ctx.lineWidth = 1.15;
-  const r = 42;
-  for (let i=0; i<4; i++) {
-    const a = i * Math.PI / 2 + ((score||70)%80)*0.011 + (Date.now()%9000)/18000;
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx + Math.cos(a)*r, cy + Math.sin(a)*r); ctx.stroke();
-  }
-  // 8px grid inner rings (Vitruvian)
-  ctx.lineWidth=0.7;
-  for (let k=1;k<3;k++){ ctx.beginPath(); ctx.arc(cx,cy,r*(0.618*k),0,Math.PI*2); ctx.stroke(); }
+  // 5원소 노드 위치(위=목 시작, 시계방향)
+  const pts = WHEEL_EL.map((_,i)=>{ const a = -Math.PI/2 + i*(Math.PI*2/5); return { x:cx+Math.cos(a)*R, y:cy+Math.sin(a)*R }; });
 
-  // p6 Lung Surprise Eye integration — real mutation on wheel
-  const lung = JSON.parse(localStorage.getItem('p6_lungFragment')||'{"breath":0.6}');
-  const spore = {wound: 0.5 + (score||0)*0.003};
-  if (window.p6LungSurpriseEye) {
-    window.p6LungSurpriseEye(ctx, w, cy-8, lung, 0.55, spore, 0.3);
-  }
+  // 상생(오각형 둘레: 목→화→토→금→수→목) — 부드러운 금선
+  ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(224,181,82,0.5)';
+  ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.stroke();
+  // 상극(오각별 대각: i→i+2) — 가는 붉은선
+  ctx.lineWidth = 0.7; ctx.strokeStyle = 'rgba(255,107,92,0.28)';
+  for (let i=0;i<5;i++){ const a=pts[i], b=pts[(i+2)%5]; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
 
-  ctx.fillStyle='#e8e0d0'; ctx.font='9px system-ui';
-  ctx.fillText('사주 오행 휠', 38, h-9);
+  // 오행 노드: 분포(dist)로 크기·발광 스케일 = 데이터 시각화
+  const d = dist || {목:1,화:1,토:1,금:1,수:1};
+  const maxv = Math.max(1, ...WHEEL_EL.map(e=>d[e.k]||0));
+  WHEEL_EL.forEach((e,i)=>{
+    const p = pts[i]; const v = (d[e.k]||0); const rr = 6 + (v/maxv)*8;
+    ctx.shadowBlur = 12 + (v/maxv)*10; ctx.shadowColor = e.glow;
+    const grad = ctx.createRadialGradient(p.x,p.y,1,p.x,p.y,rr);
+    grad.addColorStop(0, e.col); grad.addColorStop(1, 'rgba(10,8,6,0)');
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // 원소 글자
+    ctx.fillStyle = e.col; ctx.font = '600 11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(e.k, p.x, p.y);
+  });
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+
+  ctx.fillStyle='#8a8072'; ctx.font='9px system-ui';
+  ctx.fillText('사주 오행 휠', 10, h-8);
 }
 
 function p10PaySaju(detail) {
