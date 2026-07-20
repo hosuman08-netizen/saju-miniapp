@@ -268,11 +268,46 @@ function doReading() {
   if (freeLeft > 0) freeLeft--;
   updateFomo();
   localStorage.setItem('readingLast', JSON.stringify(reading));
-  recordToCodex('saju', reading.text, reading.score, reading);
+  recordToCodex('saju', reading.plain || reading.text, reading.score, reading);
   // loss if no window active
   const inWindow = document.querySelector('#fateWindows .open');
   if (!inWindow) LilithPsych.applyLoss(true);
 }
+
+// 십신(十神)별 깊은 해석 사전 — 관계마다 흐름/오늘 할 일/조심할 것/키워드
+// 명리 고전(비겁·식상·재성·관성·인성)의 실제 의미에 근거. 결정적 매핑(가짜 없음).
+const SIPSIN = {
+  비겁: {
+    flow: '동료·경쟁·자립의 기운이 나와 어깨를 나란히 하는 날. 내 주관과 추진력이 살아나지만, 같은 힘이 부딪히면 고집·경쟁으로도 흐릅니다.',
+    do: '스스로 결정하고 밀어붙일 일, 동료·팀과 함께하는 작업, 운동·체력 쓰는 일',
+    avoid: '독단·과욕·불필요한 경쟁, 돈을 빌려주거나 크게 쓰는 것',
+    kw: ['자립', '팀워크', '경쟁']
+  },
+  식상: {
+    flow: '표현·창작·베풂의 기운이 밖으로 흐르는 날. 안에 있던 생각과 재능이 결과물·말로 터져 나옵니다. 반응이 오는 하루.',
+    do: '글·작품·기획을 내보이기, 발표·콘텐츠·SNS, 후배나 아랫사람 챙기기',
+    avoid: '말실수·과한 표현, 규칙을 어기는 즉흥, 윗사람과의 마찰',
+    kw: ['창작', '표현', '베풂']
+  },
+  재성: {
+    flow: '재물·현실 성과·실속의 기운이 손에 잡히는 날. 숫자와 결과로 움직이면 좋습니다. 다만 욕심의 과속은 화를 부릅니다.',
+    do: '거래·실무·정산·투자 검토, 현실적인 협상, 사람·자원 관리',
+    avoid: '충동구매·무리한 베팅, 감정적 소비, 몸을 혹사하는 무리',
+    kw: ['재물', '실무', '성과']
+  },
+  관성: {
+    flow: '규율·책임·인정의 기운이 나를 세우는 날. 공적인 자리·평가·시험에서 빛납니다. 원칙을 지키면 신뢰가 쌓이고, 무시하면 압박이 됩니다.',
+    do: '중요한 자리·면접·발표·계약, 원칙과 절차를 지키는 일, 윗사람과의 소통',
+    avoid: '규칙 위반·편법, 권위와의 정면충돌, 무리한 책임 떠안기',
+    kw: ['책임', '인정', '규율']
+  },
+  인성: {
+    flow: '배움·회복·귀인의 기운이 나를 채우는 날. 서두르기보다 쉬며 흡수할 때 힘이 붙습니다. 공부·문서·조언에서 도움이 옵니다.',
+    do: '공부·독서·자격, 문서·서류 정리, 조언 구하기·멘토 만나기, 충분한 휴식',
+    avoid: '과로·무리한 확장, 즉흥적 결정, 게으름으로 흘려보내기',
+    kw: ['배움', '회복', '귀인']
+  }
+};
 
 // 오늘의 일진(日辰) 오행이 내 일간과 맺는 십신(十神) 관계 → 실제 근거 있는 운세 방향
 function todayReadingBase() {
@@ -281,17 +316,39 @@ function todayReadingBase() {
   const now = new Date();
   const dIdx = ((SAJU.jdn(now.getFullYear(), now.getMonth() + 1, now.getDate()) + 49) % 60 + 60) % 60;
   const todayStem = SAJU.STEMS[dIdx % 10];
+  const todayBranch = SAJU.BRANCHES[dIdx % 12];
   const todayEl = SAJU.STEM_EL[todayStem]; // 오늘 천간 오행
   // 십신 관계 판정 (내 일간 기준 오늘 오행이 무엇인가)
-  let relation, text, favor;
-  if (todayEl === dm) { relation = '비겁'; text = '동료·경쟁의 기운이 강한 날. 내 힘을 밀어붙이되 독단은 금물. 협업에서 성과가 납니다.'; favor = 'self'; }
-  else if (SAJU.GEN[dm] === todayEl) { relation = '식상'; text = '표현·창작·베풂의 기운. 아이디어를 밖으로 내보내면 좋은 반응이 옵니다. 말과 결과물로 승부할 날.'; favor = 'express'; }
-  else if (SAJU.OVERCOME[dm] === todayEl) { relation = '재성'; text = '재물·현실 성과의 기운. 실무·거래·투자 타이밍을 잡기 좋은 날. 다만 욕심의 과속은 주의.'; favor = 'wealth'; }
-  else if (SAJU.OVERCOME_BY[dm] === todayEl) { relation = '관성'; text = '규율·책임·인정의 기운. 공적인 자리·평가에서 빛나는 날. 원칙을 지키면 신뢰가 쌓입니다.'; favor = 'career'; }
-  else { relation = '인성'; text = '배움·회복·귀인의 기운. 쉬어가며 채우기 좋은 날. 공부·문서·조언에서 도움이 옵니다.'; favor = 'rest'; }
+  let relation;
+  if (todayEl === dm) relation = '비겁';
+  else if (SAJU.GEN[dm] === todayEl) relation = '식상';
+  else if (SAJU.OVERCOME[dm] === todayEl) relation = '재성';
+  else if (SAJU.OVERCOME_BY[dm] === todayEl) relation = '관성';
+  else relation = '인성';
+  const sip = SIPSIN[relation];
   // 용신에 오늘 오행이 맞으면 길함 가중 (진짜 사주 근거)
   const aligned = lastAnalysis && lastAnalysis.yongsin.includes(todayEl);
-  return { relation, text, todayStem, todayEl, aligned };
+  // 오늘 오행이 내가 없는 오행이면 "채워지는 날" (실제 분석 정합)
+  const fillsMissing = lastAnalysis && lastAnalysis.missing.includes(todayEl);
+  // 오늘 오행이 이미 과다한 오행이면 "가중되는 날" (주의)
+  const overloads = lastAnalysis && lastAnalysis.cnt[todayEl] >= 3;
+  return { relation, text: sip.flow, sip, todayStem, todayBranch, todayEl, aligned, fillsMissing, overloads, dm };
+}
+
+// 사용자 고유 사주와 오늘 일진을 엮은 개인 맞춤 통찰 한 줄 (진짜 분석 근거)
+function personalInsight(base) {
+  if (!base || !lastAnalysis) return '';
+  const A = lastAnalysis;
+  if (base.fillsMissing)
+    return `평소 <b style="color:${SAJU.EL_COLOR[base.todayEl]}">${base.todayEl}</b>이(가) 없던 사주인데, 오늘 그 기운이 채워집니다 — <b>귀한 하루</b>. ${EL_LIFE[base.todayEl].life} 쪽 일을 붙잡으세요.`;
+  if (base.aligned)
+    return `오늘 기운이 당신에게 필요한 <b>용신(${A.yongsin[0]}·${A.yongsin[1]})</b> 방향과 맞물립니다 — 흐름을 거스르지 말고 <b>순풍에 올라타세요</b>.`;
+  if (base.overloads)
+    return `이미 강한 <b style="color:${SAJU.EL_COLOR[base.todayEl]}">${base.todayEl}</b> 기운이 오늘 더해집니다 — 과유불급. <b>한 박자 늦추고</b> 균형을 의식하세요.`;
+  // 신강/신약에 따른 일반 조언
+  return A.strong
+    ? `신강한 사주라 오늘도 힘이 넘칩니다 — 안으로 쌓기보다 <b>밖으로 베풀고 내보낼 때</b> 그릇이 커집니다.`
+    : `신약한 사주라 무리는 금물 — 오늘은 <b>돕는 손을 빌리고 나를 채우는 쪽</b>이 이롭습니다.`;
 }
 
 function getSajuReading() {
@@ -318,12 +375,35 @@ function getSajuReading() {
   if (nearMiss) score = Math.min(94, score + 2);
   const pity = pityStreak >= 2;
   const finalScore = Math.floor(score * (pity ? 1.12 : 1) * multi);
-  const prefix = base
-    ? `<b class="today-rel">오늘의 일진 ${base.todayStem}(${base.todayEl}) · ${base.relation}</b>${base.aligned ? ' <span class="aligned">✦ 용신과 조화</span>' : ''}<br>`
-    : '';
+  const shownScore = Math.min(99, finalScore);
+  let text, plain;
+  if (base) {
+    // 깊은 구조화 해석: 일진 헤더 + 흐름 + 개인 통찰 + 오늘 할 일/조심할 것 + 키워드
+    const insight = personalInsight(base);
+    const kw = base.sip.kw.map(k => `<span class="kw">#${k}</span>`).join(' ');
+    text =
+      `<div class="today-rel">오늘의 일진 <b>${base.todayStem}${base.todayBranch}(${base.todayEl})</b> · ${base.relation}` +
+      `${base.aligned ? ' <span class="aligned">✦ 용신과 조화</span>' : ''}` +
+      `${base.fillsMissing ? ' <span class="aligned">✦ 없던 오행 보충</span>' : ''}</div>` +
+      `<p class="flow">${base.sip.flow}</p>` +
+      (insight ? `<p class="insight">🔎 ${insight}</p>` : '') +
+      `<div class="advice">` +
+        `<div class="adv-do"><b>오늘 하면 좋은 것</b><br>${base.sip.do}</div>` +
+        `<div class="adv-no"><b>오늘 조심할 것</b><br>${base.sip.avoid}</div>` +
+      `</div>` +
+      `<div class="kws">${kw}</div>` +
+      `<div class="fortune-idx">오늘의 운세 지수 <b>${shownScore}</b></div>`;
+    // Codex/공유용 깨끗한 요약 (HTML 없이)
+    plain = `${base.todayStem}${base.todayBranch}(${base.todayEl})·${base.relation} — 오늘은 ${base.sip.kw[0]}의 기운 (운세 ${shownScore})`;
+  } else {
+    const idx0 = Math.floor(Math.random() * texts.length);
+    text = texts[idx0] + ` (운세 지수 ${shownScore})`;
+    plain = text;
+  }
   return {
-    text: prefix + texts[idx] + ` (운세 지수 ${Math.min(99,finalScore)})`,
-    score: Math.min(99,finalScore),
+    text,
+    plain,
+    score: shownScore,
     surprise,
     multi: multi,
     res: LilithPsych.resonance.toFixed(2),

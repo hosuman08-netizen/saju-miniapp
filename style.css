@@ -54,8 +54,24 @@ main { max-width:618px; margin:0 auto; } /* Vitruvian 0.618 base */
 .el-bar { flex:1; height:9px; background:#1c1712; border-radius:999px; overflow:hidden; }
 .el-bar i { display:block; height:100%; border-radius:999px; transition:width 500ms ease; min-width:2px; }
 /* 오늘 일진 라벨 */
-.today-rel { color:var(--gold); font-size:0.86rem; }
-.aligned { color:#5aa469; font-size:0.72rem; }
+.today-rel { color:var(--gold); font-size:0.9rem; padding-bottom:6px; margin-bottom:8px; border-bottom:1px solid #2a2318; }
+.today-rel b { letter-spacing:0.5px; }
+.aligned { color:#5aa469; font-size:0.7rem; }
+/* 깊은 운세 해석 블록 */
+.flow { font-size:0.86rem; color:#e5dcc9; line-height:1.66; margin:8px 0; }
+.insight { font-size:0.82rem; color:#d8cdb8; background:#14100b; border-left:2px solid var(--gold); padding:7px 10px; border-radius:0 5px 5px 0; margin:10px 0; line-height:1.6; }
+.advice { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0; }
+@media (max-width:420px){ .advice { grid-template-columns:1fr; } }
+.adv-do, .adv-no { font-size:0.76rem; padding:8px 10px; border-radius:6px; line-height:1.5; }
+.adv-do { background:#111a12; border:1px solid #24412c; color:#cfe4d3; }
+.adv-no { background:#1a1210; border:1px solid #4a2c24; color:#e4cfc9; }
+.adv-do b, .adv-no b { display:block; font-size:0.72rem; margin-bottom:3px; opacity:0.85; }
+.adv-do b { color:#7fc48f; }
+.adv-no b { color:#d99b8a; }
+.kws { margin:8px 0 4px; }
+.kw { display:inline-block; font-size:0.7rem; color:var(--gold); background:#15120f; border:1px solid #3a2f22; border-radius:999px; padding:2px 9px; margin:2px 3px 2px 0; }
+.fortune-idx { text-align:right; font-size:0.78rem; color:#a38a66; margin-top:8px; }
+.fortune-idx b { color:var(--gold); font-size:1.05rem; }
 
 /* === 결과 공유 (바이럴 루프) === */
 .share-row { display:flex; gap:var(--grid); justify-content:center; flex-wrap:wrap; align-items:center; }
