@@ -1,4 +1,4 @@
-const SHARE_URL = 'https://hosuman08-netizen.github.io/saju-miniapp/';
+const SHARE_URL = 'https://hosuman08-netizen.github.io/saju-miniapp/?utm_source=share&utm_medium=app';
 // p20 Saju Mini + p21 cross + p6 + p10 + Fate Codex
 // LILITH PSYCH + FULL-CHEAT: daily fate windows, surprise multipliers, pity, endowment on personal Codex relics, FOMO limited banners, variable ratio + near-miss in readings
 // Internal raw psych. Public: fictional entertainment only + layered prominent disclosure. 미꾸라지.
