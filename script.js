@@ -191,16 +191,39 @@ function renderMiniDash() {
   const delta = todayReads - ydayReads;
   const goal = 2;
   const goalPct = Math.min(100, Math.round(todayReads / goal * 100));
+  // 7d read counts spark
+  let sparkHtml = '';
+  let activeDays = 0;
+  try {
+    const vals = [];
+    let maxV = 1;
+    for (let i = 6; i >= 0; i--) {
+      const k = dayOffsetKey(-i);
+      const n = codex.filter(function (c) { return (c.ts || '').slice(0, 10) === k; }).length;
+      vals.push(n);
+      if (n > maxV) maxV = n;
+      if (n > 0) activeDays++;
+    }
+    sparkHtml = vals.map(function (n) {
+      const h = Math.max(3, Math.round(n / maxV * 22));
+      return '<div style="flex:1;height:' + h + 'px;background:' + (n > 0 ? '#e0b552' : '#2a2438') + ';border-radius:2px" title="' + n + '"></div>';
+    }).join('');
+  } catch (e) {}
+  const bestSt = Math.max(s.best || 0, s.count || 0);
   el.innerHTML =
     '<div class="stat"><b>' + (s.count || 0) + '</b><span>연속 일</span></div>' +
+    (bestSt > (s.count || 0) ? '<div class="stat"><b>' + bestSt + '</b><span>최장</span></div>' : '') +
     '<div class="stat"><b>' + codex.length + '</b><span>총 기록</span></div>' +
     '<div class="stat"><b>' + todayReads + '</b><span>오늘 열람</span></div>' +
     '<div class="stat"><b>' + (delta > 0 ? '+' + delta : String(delta)) + '</b><span>전일 대비</span></div>' +
     '<div class="stat"><b>' + weekN + '</b><span>7일 속도</span></div>' +
+    '<div class="stat"><b>' + activeDays + '/7</b><span>활동일</span></div>' +
     (weekBest ? '<div class="stat"><b>' + weekBest + '</b><span>7일 최고</span></div>' : '') +
     '<div class="stat"><b>' + shares + '</b><span>공유</span></div>' +
     '<div style="grid-column:1/-1;margin-top:6px"><div style="font-size:11px;opacity:.75;margin-bottom:3px">오늘 목표 ' + todayReads + '/' + goal + (todayReads >= goal ? ' ✓' : '') + '</div>' +
-    '<div style="height:6px;background:#1c1826;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:' + goalPct + '%;background:linear-gradient(90deg,#e0b552,#67e8f9)"></i></div></div>';
+    '<div style="height:6px;background:#1c1826;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:' + goalPct + '%;background:linear-gradient(90deg,#e0b552,#67e8f9)"></i></div>' +
+    (sparkHtml ? '<div style="display:flex;align-items:flex-end;gap:3px;height:26px;margin-top:8px">' + sparkHtml + '</div>' : '') +
+    '</div>';
 }
 function offerSharePeak(reading) {
   const host = document.getElementById('reading');
