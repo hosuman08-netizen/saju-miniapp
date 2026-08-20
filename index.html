@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://telegram.org 'unsafe-inline'; connect-src 'self' https://*.workers.dev https://api.telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'" />
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>사주 명리 · 정통 만세력 — 명식·십신·대운·궁합</title>
+  <meta name="description" content="생년월일시를 넣으면 정통 만세력으로 사주 명식(천간지지·십신·십이운성·지장간·공망·신살)과 대운·세운·궁합까지 뽑아주는 미니앱. 절입시각 분 단위 계산 + 진태양시·서머타임 보정. 재미로 보는 엔터테인먼트 풀이입니다.">
+  <link rel="canonical" href="https://hosuman08-netizen.github.io/saju-miniapp/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hosuman08-netizen.github.io/saju-miniapp/">
+  <meta property="og:title" content="사주 명리 · 정통 만세력">
+  <meta property="og:description" content="명식·십신·십이운성·신살·대운·세운·궁합까지. 절입시각 분 단위 + 진태양시·서머타임 보정.">
+  <meta property="og:locale" content="ko_KR">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="사주 명리 · 정통 만세력">
+  <meta name="twitter:description" content="명식·십신·십이운성·신살·대운·세운·궁합까지. 절입시각 분 단위 + 진태양시·서머타임 보정.">
+
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <!-- 2026-08-20 Trinity(CPO): 18+ 연령게이트 제거 — 사주/운세는 성인 콘텐츠 아님(경쟁사 점신 등 전체이용가),
+       유입 1차 이탈 원인(p1 가챠 전례와 동일 패턴), 앱인토스 전체이용가 요건과도 맞음.
+       엔터테인먼트·예언아님 고지는 본문 disclaimer로 유지(제거 안 함). -->
+  <header>
+    <h1>사주 명리</h1>
+    <p class="tag">태어난 순간의 여덟 글자, 그 안의 흐름을 읽다</p>
+    <div class="fomo" id="fomo"><span id="fomoClock"></span> · 오늘 무료 1회 남음</div>
+    
+    <div id="fateWindows" class="fate-windows"></div>
+    <div id="limitedBanner" class="limited-banner">🌑 흑월 운세 — 오늘 한정 (가상)</div>
+  </header>
+
+  <main>
+    <section id="todayPeek" class="peek-card">
+      <h2>오늘의 흐름</h2>
+      
+      
+      <div id="todayCatalog" class="today-cats" role="list"></div>
+      <small>오늘 날짜만으로 보는 일진·절기(만세력). 개인 명식은 아래 생년월일. 엔터테인먼트 · 예언 아님.</small>
+    </section>
+    <section id="input">
+      <div id="inviteBanner" class="invite-banner" hidden></div>
+      <h2>생년월일시 입력</h2>
+      <div class="input-summary" id="inputSummary" onclick="SajuUI.editInput()" role="button" tabindex="0">
+        <span id="summaryText"></span><span class="edit-link">수정</span>
+      </div>
+      <div class="form" id="inputForm">
+        <div class="field">
+          <label for="birth">생년월일 (양력)</label>
+          <input type="date" id="birth" value="1990-01-01" min="1900-01-01" max="2100-12-31">
+        </div>
+        <div class="field">
+          <label for="time">태어난 시각</label>
+          <input type="time" id="time" value="12:00">
+          <div id="jaChip" class="lon-preset" role="group" aria-label="자시 학파"></div>
+          <p id="jaHint" class="note">자시(23:00–00:59)만 조자시/야자시 분기 · 예언 아님</p>
+        </div>
+        <div class="field">
+          <label for="gender">성별 <span class="why">대운 순행/역행 판정에 쓰입니다</span></label>
+          <select id="gender"><option value="m">남</option><option value="f">여</option></select>
+        </div>
+        <div class="field">
+          <label for="city">태어난 곳 <span class="why">진태양시 경도 보정</span></label>
+          <select id="city"></select>
+          <div id="lonPreset" class="lon-preset" role="group" aria-label="경도 프리셋"></div>
+          <p id="lonHint" class="note">도시 칩 = 경도만. 명식·예언 발명 없음</p>
+          <p id="dstHint" class="note">한국 서머타임: 생년월일 입력 후 표시 · 예언 아님</p>
+        </div>
+        <label class="check"><input type="checkbox" id="timeUnknown"> 태어난 시각을 모릅니다 <span class="why">시주 제외하고 계산</span></label>
+        <details class="adv">
+          <summary>계산 기준 설정</summary>
+          <div class="adv-body">
+            <label class="check-inline">자시(子時) 기준
+              <select id="jaSchool">
+                <option value="조자시">조자시설 — 23:00부터 다음 날 일주</option>
+                <option value="야자시">야자시설 — 자정부터 다음 날 일주</option>
+              </select>
+            </label>
+            <p class="note">두 학파 모두 실제로 쓰입니다. 어느 쪽을 적용했는지 결과에 함께 표기합니다.</p>
+            <label class="check"><input type="checkbox" id="optLon" checked> 경도(진태양시) 보정 적용</label>
+            <label class="check"><input type="checkbox" id="optEot" checked> 균시차 보정 적용</label>
+          </div>
+        </details>
+        <button onclick="SajuUI.generate()" class="primary-cta wide">명식 뽑기</button>
+      </div>
+    </section>
+
+    <section id="chart" class="hidden">
+      <div id="hero"></div>
+      <div id="gijilCard"></div>
+
+      <nav class="tabs" id="tabs" role="tablist">
+        <button class="tab active" data-tab="t-myeongsik" role="tab">명식</button>
+        <button class="tab" data-tab="t-sipsin" role="tab">십신·신살</button>
+        <button class="tab" data-tab="t-daeun" role="tab">대운·세운</button>
+        <button class="tab" data-tab="t-gunghap" role="tab">궁합</button>
+        <button class="tab" data-tab="t-basis" role="tab">계산 근거</button>
+      </nav>
+
+      <div id="t-myeongsik" class="panel active">
+        <div id="myeongsik"></div>
+        <canvas id="saju-canvas" width="680" height="400"></canvas>
+        <div id="elements"></div>
+        <div class="cta-stack">
+          <button onclick="doReading()" class="primary-cta wide">오늘의 운세 보기</button>
+          <div class="btn-row">
+            <button onclick="voiceReading()" class="secondary">🎤 음성으로 듣기</button>
+            <button onclick="SajuUI.shareCard()" class="secondary">🖼️ 명식 카드 저장</button>
+            <button onclick="unlockPremium()" class="secondary">상세 풀이</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="t-sipsin" class="panel"><div id="sipsinBody"></div></div>
+      <div id="t-daeun" class="panel"><div id="daeunBody"></div></div>
+
+      <div id="t-gunghap" class="panel">
+        <div class="gunghap-intro">
+          <h3>궁합 보기</h3>
+          <p class="note">상대의 생년월일시를 넣으면 두 명식을 나란히 놓고 일간·일지·용신·오행으로 대조합니다.</p>
+        </div>
+        <div class="form compact">
+          <div class="field">
+            <label for="pBirth">상대 생년월일</label>
+            <input type="date" id="pBirth" value="1992-01-01" min="1900-01-01" max="2100-12-31">
+          </div>
+          <div class="field">
+            <label for="pTime">상대 시각</label>
+            <input type="time" id="pTime" value="12:00">
+          </div>
+          <div class="field">
+            <label for="pGender">상대 성별</label>
+            <select id="pGender"><option value="f">여</option><option value="m">남</option></select>
+          </div>
+          <button onclick="SajuUI.matchRun()" class="primary-cta wide">궁합 보기</button>
+          <button onclick="SajuUI.invite()" class="secondary wide" style="margin-top:8px">💌 상대에게 궁합 초대 링크 보내기</button>
+          <p class="note" style="margin-top:6px">링크를 받은 상대가 자기 생년월일만 넣으면 두 사람 궁합이 바로 계산됩니다. 상대 정보를 몰라도 됩니다.</p>
+        </div>
+        <div id="gunghapBody"></div>
+      </div>
+
+      <div id="t-basis" class="panel"><div id="basisBody"></div></div>
+    </section>
+
+    <section id="reading" class="hidden">
+      <h2>운세 결과</h2>
+      <div id="readingText" class="card"></div>
+      <div class="surprise" id="surprise"></div>
+      <div id="domainFortune" class="domain-fortune"></div>
+      <div id="luckyItems" class="lucky-items"></div>
+      <div class="share-row">
+        <button onclick="SajuUI.shareCard()" class="primary-cta">🖼️ 카드로 저장·공유</button>
+        <button onclick="shareResult()" class="secondary">📤 링크 복사</button>
+        <button onclick="shareToX()" class="secondary share-x">𝕏 로 공유</button>
+      </div>
+      <p class="disclaimer">엔터테인먼트용 풀이입니다 · 명식 계산은 정통 만세력 알고리즘, 해석은 재미로 보는 것입니다 · 의료·법률·투자 조언 아님</p>
+    </section>
+
+    <section id="codex">
+      <h2>운명의 서 — 나의 기록</h2>
+      <div class="mini-dash" id="miniDash" aria-label="나의 기록 요약"></div>
+      <div id="codexList"></div>
+      <div class="btn-row">
+        <button onclick="showCodex()" class="secondary">기록 다시 보기</button>
+      </div>
+      <p class="disclaimer">기록을 누르면 더 선명해집니다 · 엔터테인먼트용</p>
+    </section>
+  </main>
+
+  <footer>
+    <small>명식 계산은 결정적 알고리즘(VSOP87 절입시각 · 진태양시 보정)으로 산출합니다. 해석은 엔터테인먼트 목적의 풀이입니다.</small>
+  </footer>
+  <div id="toast"></div>
+
+  <!-- Telegram WebApp SDK — 미니앱 안에서만 활성화되고, 일반 웹에서는 window.Telegram이 없거나
+       initData가 비어 결제 UI가 자동으로 잠긴다(무료 지급 경로 없음). CSP script-src에 이미 허용됨. -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="lung-surprise-eye.js"></script>
+  <script src="saju-pro.js"></script>
+  <script src="script.js"></script>
+  <script src="saju-ui.js"></script>
+<script>window.LEGION_APP='saju-miniapp';window.LEGION_ANALYTICS_URL='https://legion-analytics.hoyashi95.workers.dev';</script>
+<script src="legion-beacon.js"></script>
+<!-- 결제 진입점. legionTrack(beacon) + SajuUI 이후에 로드해야 이벤트/토스트가 붙는다. -->
+<script src="saju-premium.js"></script>
+<script src="saju-pay.js?v=20260820p"></script>
+<script src="p10-rail.js"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(function(){});}</script>
+<script>
+(function(){function tick(){var e=new Date();e.setHours(24,0,0,0);var ms=e-Date.now();if(ms<0)ms=0;var h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4);var el=document.getElementById('fomoClock');if(el)el.textContent='오늘창 '+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}tick();setInterval(tick,3e4);})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1550 @@
+const SHARE_BASE = 'https://hosuman08-netizen.github.io/saju-miniapp/';
+// p20 Saju Mini — fortune reading mini-app. Fictional entertainment, prominent disclosure throughout.
+let freeLeft = 1;
+const CODEX_KEY = 'fateCodex';
+const STREAK_KEY = 'sajuStreak';
+const SHARE_COUNT_KEY = 'sajuShareCount';
+let pityStreak = parseInt(localStorage.getItem('sajuPity') || '0');
+let baseLuck = parseFloat(localStorage.getItem('sajuBaseLuck') || '1.0');
+
+function sajuKId() {
+  try {
+    var id = localStorage.getItem('saju_k_id');
+    if (!id) { id = 's' + Math.random().toString(36).slice(2, 8); localStorage.setItem('saju_k_id', id); }
+    return id;
+  } catch (e) { return 'share'; }
+}
+function getShareUrl() {
+  return SHARE_BASE + '?utm_source=share&utm_medium=app&ref=' + encodeURIComponent(sajuKId());
+}
+// compat: many call sites use SHARE_URL as string — keep live getter alias
+Object.defineProperty(window, 'SHARE_URL', { get: function () { return getShareUrl(); } });
+function captureSajuKRef() {
+  try {
+    var q = new URLSearchParams(location.search || '');
+    var ref = q.get('ref');
+    if (!ref || ref === 'share') return;
+    if (ref === sajuKId()) return;
+    if (!localStorage.getItem('saju_k_from')) {
+      localStorage.setItem('saju_k_from', ref);
+      var n = (parseInt(localStorage.getItem('saju_k_inbound') || '0', 10) || 0) + 1;
+      localStorage.setItem('saju_k_inbound', String(n));
+      if (window.legionTrack) try { legionTrack('k_link', { from: ref }); } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dayOffsetKey(n) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+/** Duolingo-class: 1 missed day freeze once/7d if streak≥3 (loss aversion, guilt-free return) */
+function applySajuStreakShield(s) {
+  if (!s || !s.last) return { s: s || { last: null, count: 0, best: 0 }, froze: false };
+  const t = todayKey();
+  if (s.last === t || s.last === dayOffsetKey(-1)) return { s, froze: false };
+  const missedOne = s.last === dayOffsetKey(-2);
+  const shieldReady = !s.shieldLast || ((new Date(t) - new Date(s.shieldLast)) / 86400000) >= 7;
+  if (missedOne && shieldReady && (s.count || 0) >= 3) {
+    s.shieldLast = t;
+    s.last = dayOffsetKey(-1);
+    try {
+      if (window.SajuUI && SajuUI.toast) SajuUI.toast('🛡️ 연속 보호막이 ' + s.count + '일 스트릭을 지켰어요');
+      else if (document.body) {
+        var el = document.createElement('div');
+        el.textContent = '🛡️ 연속 보호막 · ' + s.count + '일 유지';
+        el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1520;color:#fbbf24;padding:10px 16px;border-radius:12px;z-index:9999;font-size:13px;border:1px solid #fbbf24';
+        document.body.appendChild(el);
+        setTimeout(function () { el.remove(); }, 3200);
+      }
+    } catch (e) {}
+    if (window.legionTrack) try { legionTrack('streak_freeze', { count: s.count }); } catch (e) {}
+    return { s, froze: true };
+  }
+  return { s, froze: false };
+}
+function bumpStreak() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  if (!s || typeof s !== 'object') s = { last: null, count: 0, best: 0 };
+  const t = todayKey();
+  if (s.last === t) { renderStreak(); return s; }
+  const bridged = applySajuStreakShield(s);
+  s = bridged.s;
+  const yk = dayOffsetKey(-1);
+  s.count = (s.last === yk) ? (s.count || 0) + 1 : 1;
+  s.best = Math.max(s.best || 0, s.count);
+  s.last = t;
+  localStorage.setItem(STREAK_KEY, JSON.stringify(s));
+  renderStreak();
+  if (window.legionTrack) try { window.legionTrack('streak', { count: s.count, best: s.best, froze: !!bridged.froze }); } catch (e) {}
+  return s;
+}
+function codexWeekN(codex) {
+  try {
+    const cut = Date.now() - 7 * 86400000;
+    return (codex || []).filter(function (c) {
+      const t = c && c.ts ? Date.parse(c.ts) : 0;
+      return t >= cut;
+    }).length;
+  } catch (e) { return 0; }
+}
+function exportCodexJSON() {
+  try {
+    const codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+    const payload = { app: 'saju-miniapp', exportedAt: new Date().toISOString(), codex: codex.slice(0, 200) };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'saju-codex-' + todayKey() + '.json';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+    if (window.legionTrack) legionTrack('export', { n: codex.length });
+  } catch (e) {}
+}
+function importCodexJSON(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = function () {
+    try {
+      const p = JSON.parse(r.result);
+      const arr = Array.isArray(p) ? p : (p && Array.isArray(p.codex) ? p.codex : null);
+      if (!arr || !arr.length) throw new Error('empty');
+      const cur = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
+      const ids = {};
+      cur.forEach(function (c) { if (c && c.id) ids[c.id] = 1; });
+      const merged = cur.slice();
+      arr.forEach(function (c) {
+        if (!c) return;
+        if (c.id && ids[c.id]) return;
+        if (c.id) ids[c.id] = 1;
+        merged.push(c);
+      });
+      localStorage.setItem(CODEX_KEY, JSON.stringify(merged.slice(0, 300)));
+      renderStreak(); renderMiniDash();
+      if (typeof showCodex === 'function') showCodex();
+      if (window.legionTrack) legionTrack('import', { n: arr.length });
+      if (typeof showToast === 'function') showToast('기록 ' + arr.length + '건 병합 복원');
+    } catch (e) {
+      alert('JSON 형식을 확인해 주세요 (백업 파일 권장)');
+    }
+  };
+  r.readAsText(file);
+}
+function renderStreak() {
+  const el = document.getElementById('streak');
+  if (!el) return;
+  let s;
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
+  if (!codex.length) {
+    el.innerHTML = '아직 기록이 없어요 — 명식을 뽑고 운세를 열어보세요'
+      + ' <label class="secondary" style="margin-left:6px;padding:2px 8px;font-size:11px;cursor:pointer">⬆ 복원<input id="sajuImportEmpty" type="file" accept="application/json,.json" style="display:none"/></label>';
+    const ie = document.getElementById('sajuImportEmpty');
+    if (ie) ie.onchange = function () { if (ie.files && ie.files[0]) importCodexJSON(ie.files[0]); ie.value = ''; };
+    return;
+  }
+  const count = s.count || 0;
+  const best = s.best || 0;
+  const weekN = codexWeekN(codex);
+  const weekGoal = 7;
+  const weekBar = weekN >= weekGoal ? '✓' : (weekN + '/' + weekGoal);
+  const shieldReady = !s.shieldLast || ((new Date(todayKey()) - new Date(s.shieldLast)) / 86400000) >= 7;
+  el.innerHTML = count + '일 연속 · 기록 ' + codex.length + '개'
+    + ' · 7일 ' + weekN + '회 (' + weekBar + ')'
+    + (best > count ? ' · 최장 ' + best + '일' : '')
+    + (count >= 3 && shieldReady ? ' · 🛡️보호 1회' : (s.shieldLast ? ' · 🛡️사용됨' : ''))
+    + ' <button type="button" id="sajuExportBtn" class="secondary" style="margin-left:6px;padding:2px 8px;font-size:11px">⬇ 기록 백업</button>'
+    + ' <label class="secondary" style="margin-left:4px;padding:2px 8px;font-size:11px;cursor:pointer">⬆ 복원<input id="sajuImportBtn" type="file" accept="application/json,.json" style="display:none"/></label>';
+  const xb = document.getElementById('sajuExportBtn');
+  if (xb) xb.onclick = exportCodexJSON;
+  const ib = document.getElementById('sajuImportBtn');
+  if (ib) ib.onchange = function () { if (ib.files && ib.files[0]) importCodexJSON(ib.files[0]); ib.value = ''; };
+}
+function renderMiniDash() {
+  const el = document.getElementById('miniDash');
+  if (!el) return;
+  const codex = (() => { try { return JSON.parse(localStorage.getItem(CODEX_KEY) || '[]'); } catch (e) { return []; } })();
+  let s;
+  try { s = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch (e) { s = {}; }
+  const shares = parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0;
+  const today = todayKey();
+  const yday = dayOffsetKey(-1);
+  const todayReads = codex.filter(c => (c.ts || '').slice(0, 10) === today).length;
+  const ydayReads = codex.filter(c => (c.ts || '').slice(0, 10) === yday).length;
+  const weekN = codexWeekN(codex);
+  let weekBest = 0;
+  try {
+    const cut = Date.now() - 7 * 86400000;
+    codex.forEach(function (c) {
+      const t = c && c.ts ? Date.parse(c.ts) : 0;
+      const sc = +(c && (c.score != null ? c.score : c.power)) || 0;
+      if (t >= cut && sc > weekBest) weekBest = sc;
+    });
+  } catch (e) {}
+  const delta = todayReads - ydayReads;
+  const goal = 2;
+  const goalPct = Math.min(100, Math.round(todayReads / goal * 100));
+  // 7d read counts spark
+  let sparkHtml = '';
+  let activeDays = 0;
+  try {
+    const vals = [];
+    let maxV = 1;
+    for (let i = 6; i >= 0; i--) {
+      const k = dayOffsetKey(-i);
+      const n = codex.filter(function (c) { return (c.ts || '').slice(0, 10) === k; }).length;
+      vals.push(n);
+      if (n > maxV) maxV = n;
+      if (n > 0) activeDays++;
+    }
+    sparkHtml = vals.map(function (n) {
+      const h = Math.max(3, Math.round(n / maxV * 22));
+      return '<div style="flex:1;height:' + h + 'px;background:' + (n > 0 ? '#e0b552' : '#2a2438') + ';border-radius:2px" title="' + n + '"></div>';
+    }).join('');
+  } catch (e) {}
+  const bestSt = Math.max(s.best || 0, s.count || 0);
+  el.innerHTML =
+    '<div class="stat"><b>' + (s.count || 0) + '</b><span>연속 일</span></div>' +
+    (bestSt > (s.count || 0) ? '<div class="stat"><b>' + bestSt + '</b><span>최장</span></div>' : '') +
+    '<div class="stat"><b>' + codex.length + '</b><span>총 기록</span></div>' +
+    '<div class="stat"><b>' + todayReads + '</b><span>오늘 열람</span></div>' +
+    '<div class="stat"><b>' + (delta > 0 ? '+' + delta : String(delta)) + '</b><span>전일 대비</span></div>' +
+    '<div class="stat"><b>' + weekN + '</b><span>7일 속도</span></div>' +
+    '<div class="stat"><b>' + activeDays + '/7</b><span>활동일</span></div>' +
+    (weekBest ? '<div class="stat"><b>' + weekBest + '</b><span>7일 최고</span></div>' : '') +
+    '<div class="stat"><b>' + shares + '</b><span>공유</span></div>' +
+    '<div style="grid-column:1/-1;margin-top:6px"><div style="font-size:11px;opacity:.75;margin-bottom:3px">오늘 목표 ' + todayReads + '/' + goal + (todayReads >= goal ? ' ✓' : '') + '</div>' +
+    '<div style="height:6px;background:#1c1826;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:' + goalPct + '%;background:linear-gradient(90deg,#e0b552,#67e8f9)"></i></div>' +
+    (sparkHtml ? '<div style="display:flex;align-items:flex-end;gap:3px;height:26px;margin-top:8px">' + sparkHtml + '</div>' : '') +
+    '</div>';
+}
+function offerSharePeak(reading) {
+  const host = document.getElementById('reading');
+  if (!host) return;
+  let peak = document.getElementById('sharePeak');
+  if (!peak) {
+    peak = document.createElement('div');
+    peak.id = 'sharePeak';
+    peak.className = 'share-peak';
+    host.appendChild(peak);
+  }
+  const score = (reading && reading.score) || 70;
+  const line = score >= 82
+    ? '오늘 결이 선명해요 — 지금 카드로 공유하면 가장 예쁘게 남아요'
+    : '결과가 나왔어요 — 친구에게 한 장 보내볼까요?';
+  peak.innerHTML = '<p>✨ ' + line + '</p>'
+    + '<div class="share-row">'
+    + '<button type="button" class="primary-cta" onclick="SajuUI.shareCard && SajuUI.shareCard(); if(window.legionTrack)legionTrack(\'share_peak\')">🖼️ 카드 공유</button>'
+    + '<button type="button" class="secondary" onclick="shareResult()">📤 링크</button>'
+    + '<button type="button" class="secondary" onclick="document.getElementById(\'sharePeak\').style.display=\'none\'">나중에</button>'
+    + '</div>';
+  peak.style.display = 'block';
+  if (window.legionTrack) try { window.legionTrack('share_peak_shown', { score: score }); } catch (e) {}
+}
+
+/* ── 결정적 데일리 난수 ──
+ * 운세 지수가 새로고침마다 바뀌는 것은 "가짜 계산"이다 — 유저가 두 번 보면 신뢰 전멸.
+ * 시드 = (오늘 일진 60갑자 index) × (내 명식 일주·시주·월지). 같은 사람·같은 날 = 항상 같은 값.
+ * 날마다·사람마다는 값이 달라진다. */
+function dailySeed() {
+  const now = new Date();
+  const dIdx = ((SAJU.jdn(now.getFullYear(), now.getMonth() + 1, now.getDate()) + 49) % 60 + 60) % 60;
+  let h = (Math.imul(dIdx + 1, 2654435761) ^ (now.getFullYear() * 97)) >>> 0;
+  const c = (typeof lastChart !== 'undefined' && lastChart && lastChart.day)
+    ? lastChart.day.stem + lastChart.day.branch
+      + (lastChart.hour ? lastChart.hour.stem + lastChart.hour.branch : '')
+      + (lastChart.month ? lastChart.month.branch : '')
+    : (localStorage.getItem('saju_k_id') || '');
+  for (let i = 0; i < c.length; i++) h = (Math.imul(h, 31) + c.charCodeAt(i)) >>> 0;
+  return h >>> 0;
+}
+function seededRand(seed) { // mulberry32
+  let t = seed >>> 0;
+  return function () {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let x = Math.imul(t ^ (t >>> 15), t | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const OutcomeEngine = {
+  resonance: 0.5,
+  updateResonance(rnd) {
+    const r = rnd || Math.random;
+    const s = r() * 0.6 + 0.3;
+    this.resonance = Math.min(0.98, Math.max(0.25, s));
+    return this.resonance;
+  },
+  // Variable ratio + surprise multiplier (rnd = 결정적 데일리 난수)
+  // 2026-08-13 재보정: 기존 계수(0.55+1.65r × 0.85+0.5res)는 상한 포화로 91%가 99점 — 지수가 무의미했다.
+  // 평균 ~1.0 중심의 변동으로 재조정 → 평균 70 안팎, 90+는 희소(서프라이즈 가치 복원).
+  variableOutcome(baseScore, historyAvg, rnd) {
+    const r = rnd || Math.random;
+    const varFactor = 0.72 + r() * 0.56; // 0.72~1.28, 평균 1.0 (일 단위로만 변동)
+    let out = Math.floor(baseScore * varFactor * (0.78 + this.resonance * 0.24) * baseLuck);
+    return Math.max(35, Math.min(97, out));
+  },
+  // Near-miss tease + pity
+  applyNearMissPity(score, isBad, rnd) {
+    const r = rnd || Math.random;
+    if (isBad && pityStreak >= 2) {
+      pityStreak = 0; localStorage.setItem('sajuPity', '0');
+      return Math.min(96, score + 14 + Math.floor(this.resonance * 12)); // pity boost
+    }
+    if (r() > 0.62) {
+      return score - 3 + Math.floor(this.resonance * 7); // near-miss close call
+    }
+    return score;
+  },
+  // Loss aversion: miss daily window lowers base
+  applyLoss(missed) {
+    if (missed) {
+      baseLuck = Math.max(0.72, baseLuck - 0.09);
+      localStorage.setItem('sajuBaseLuck', baseLuck.toFixed(2));
+    }
+  }
+};
+
+function updateFomo() {
+  const el = document.getElementById('fomo');
+  const today = new Date().toDateString();
+  const saved = localStorage.getItem('sajuFomo');
+  if (saved !== today) { freeLeft = 1; localStorage.setItem('sajuFomo', today); /*오늘 리셋*/ pityStreak = 0; localStorage.setItem('sajuPity', '0'); }
+  el.textContent = freeLeft > 0 ? `오늘 무료 ${freeLeft}회 남음 • 기운 ${ (baseLuck*100|0) }%` : '오늘 무료 소진 (프리미엄 추천)';
+  updateFateWindows();
+}
+
+// Ruthless daily fate windows (FOMO scarcity + timer)
+function updateFateWindows() {
+  const wEl = document.getElementById('fateWindows');
+  if (!wEl) return;
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const windows = [
+    { id:0, label:'새벽 명궁', start:5*60, end:8*60 },
+    { id:1, label:'정오 대운', start:11*60, end:14*60 },
+    { id:2, label:'자정 흑월', start:21*60, end:23*60+30 }
+  ];
+  let html = '';
+  windows.forEach(w => {
+    const open = mins >= w.start && mins < w.end;
+    let left = '';
+    if (open) {
+      const rem = w.end - mins;
+      const hh = Math.floor(rem / 60), mm = rem % 60;
+      left = `⏱ ${hh ? hh + '시간 ' : ''}${mm}분 남음 · 열림`;
+    } else {
+      left = '닫힘';
+    }
+    html += `<span class="win ${open?'open':'closed'}">${w.label} ${left}</span> `;
+  });
+  wEl.innerHTML = html + ' <small style="opacity:.55">재미로 보는 시간대 연출입니다</small>';
+}
+
+// =====================================================================
+// REAL SAJU ENGINE (사주 명리 실계산) — Trinity core-value upgrade
+// 생년월일시 → 사주팔자(연월일시 천간지지) + 오행 분포 + 일간 강약 해석
+// 검증된 알고리즘: 일주=율리우스적일수 60갑자, 월주=절기+五虎遁, 시주=五鼠遁,
+// 연주=입춘(2/4) 경계. 여러 공표 기준점(2000-01-07 甲子日 등)으로 교차검증됨.
+// 결정적(deterministic) — 같은 입력은 항상 같은 사주. 가짜/랜덤 없음.
+// =====================================================================
+const SAJU = {
+  STEMS: ['갑','을','병','정','무','기','경','신','임','계'],
+  BRANCHES: ['자','축','인','묘','진','사','오','미','신','유','술','해'],
+  STEM_HANJA: {갑:'甲',을:'乙',병:'丙',정:'丁',무:'戊',기:'己',경:'庚',신:'辛',임:'壬',계:'癸'},
+  BRANCH_HANJA: {자:'子',축:'丑',인:'寅',묘:'卯',진:'辰',사:'巳',오:'午',미:'未',신:'申',유:'酉',술:'戌',해:'亥'},
+  ZODIAC: {자:'쥐',축:'소',인:'호랑이',묘:'토끼',진:'용',사:'뱀',오:'말',미:'양',신:'원숭이',유:'닭',술:'개',해:'돼지'},
+  STEM_EL: {갑:'목',을:'목',병:'화',정:'화',무:'토',기:'토',경:'금',신:'금',임:'수',계:'수'},
+  BRANCH_EL: {자:'수',축:'토',인:'목',묘:'목',진:'토',사:'화',오:'화',미:'토',신:'금',유:'금',술:'토',해:'수'},
+  STEM_YY: {갑:'양',을:'음',병:'양',정:'음',무:'양',기:'음',경:'양',신:'음',임:'양',계:'음'},
+  EL_COLOR: {목:'#5aa469',화:'#c9524a',토:'#c9a24a',금:'#d8d2c4',수:'#4a72c9'},
+  // 상생: A→A가 생하는 오행. 상극: A가 극하는 오행.
+  GEN: {목:'화',화:'토',토:'금',금:'수',수:'목'},   // 목생화...
+  GEN_BY: {목:'수',화:'목',토:'화',금:'토',수:'금'},  // 나를 생하는 오행 (인성)
+  OVERCOME: {목:'토',화:'금',토:'수',금:'목',수:'화'}, // 목극토... (내가 극 = 재성)
+  OVERCOME_BY: {목:'금',화:'수',토:'목',금:'화',수:'토'}, // 나를 극 = 관성
+
+  // 그레고리력 → 율리우스적일수 (Fliegel-Van Flandern)
+  jdn(y, m, d) {
+    const a = Math.floor((14 - m) / 12);
+    const yy = y + 4800 - a;
+    const mm = m + 12 * a - 3;
+    return d + Math.floor((153 * mm + 2) / 5) + 365 * yy
+      + Math.floor(yy / 4) - Math.floor(yy / 100) + Math.floor(yy / 400) - 32045;
+  },
+
+  // 절기 근사: 각 그레고리 월의 節(주요 절기) 시작일. 이 날 이전이면 전 달 소속.
+  // (寅월=입춘~2/4, 卯월=경칩~3/6 ...) 근사 ±1일. 클라이언트 단독·경량.
+  TERM_DAY: [6, 4, 6, 5, 6, 6, 7, 8, 8, 8, 7, 7],
+
+  compute(y, m, d, hour, minute) {
+    hour = hour || 0; minute = minute || 0;
+    // --- 연주: 입춘(≈2/4) 경계 ---
+    let yy = y;
+    if (m < 2 || (m === 2 && d < 4)) yy = y - 1;
+    const yStem = ((yy - 4) % 10 + 10) % 10;
+    const yBranch = ((yy - 4) % 12 + 12) % 12;
+
+    // --- 월주: 절기 기준 지지 + 五虎遁 천간 ---
+    let sm = m;
+    if (d < this.TERM_DAY[m - 1]) sm = (m - 1 === 0) ? 12 : m - 1;
+    const mBranch = sm % 12; // 1월(小寒)→丑(1), 2월(입춘)→寅(2)...
+    const mStemStart = [2, 4, 6, 8, 0][yStem % 5]; // 甲己→丙, 乙庚→戊...
+    const mOrder = (mBranch - 2 + 12) % 12;         // 寅월을 0으로
+    const mStem = (mStemStart + mOrder) % 10;
+
+    // --- 일주: 율리우스적일수 60갑자 (2000-01-07=甲子 기준점 검증) ---
+    const dIdx = ((this.jdn(y, m, d) + 49) % 60 + 60) % 60;
+    const dStem = dIdx % 10;
+    const dBranch = dIdx % 12;
+
+    // --- 시주: 五鼠遁 (자시=23~1시) ---
+    const hb = Math.floor(((hour + 1) % 24) / 2); // 23:00~00:59→子(0)
+    const hStemStart = [0, 2, 4, 6, 8][dStem % 5]; // 甲己→甲子, 乙庚→丙子...
+    const hStem = (hStemStart + hb) % 10;
+
+    const P = (s, b) => ({
+      stem: this.STEMS[s], branch: this.BRANCHES[b],
+      hanja: this.STEM_HANJA[this.STEMS[s]] + this.BRANCH_HANJA[this.BRANCHES[b]],
+      el: this.STEM_EL[this.STEMS[s]], bel: this.BRANCH_EL[this.BRANCHES[b]]
+    });
+    return {
+      year: P(yStem, yBranch), month: P(mStem, mBranch),
+      day: P(dStem, dBranch), hour: P(hStem, hb),
+      dayMaster: this.STEMS[dStem], zodiac: this.ZODIAC[this.BRANCHES[yBranch]]
+    };
+  },
+
+  // 오행 분포 (천간+지지 8글자)
+  elementCount(chart) {
+    const c = { 목: 0, 화: 0, 토: 0, 금: 0, 수: 0 };
+    ['year', 'month', 'day', 'hour'].forEach(k => { c[chart[k].el]++; c[chart[k].bel]++; });
+    return c;
+  },
+
+  // 일간(日干) 강약 분석 → 용신 방향 + 성향 해석
+  analyze(chart) {
+    const cnt = this.elementCount(chart);
+    const dm = this.STEM_EL[chart.dayMaster]; // 일간 오행
+    // 세력 = 비겁(같은오행) + 인성(나를 생하는 오행)
+    const support = cnt[dm] + cnt[this.GEN_BY[dm]];
+    const strong = support >= 4;
+    // 부족/과다 오행
+    const entries = Object.entries(cnt).sort((a, b) => a[1] - b[1]);
+    const weakest = entries[0][0], strongest = entries[entries.length - 1][0];
+    const missing = Object.keys(cnt).filter(e => cnt[e] === 0);
+    // 용신(보완 오행) 방향: 신강이면 극·설(관성/식상), 신약이면 생·조(인성/비겁)
+    const yongsin = strong
+      ? [this.OVERCOME_BY[dm], this.OVERCOME[dm]]  // 관성·재성 방향
+      : [this.GEN_BY[dm], dm];                     // 인성·비겁 방향
+    return { cnt, dm, dmYY: this.STEM_YY[chart.dayMaster], strong, support, weakest, strongest, missing, yongsin };
+  }
+};
+
+// 일간별 기질 (十干 성정) — 명리 고전 기반 요약
+const DAY_MASTER_TRAIT = {
+  갑: '큰 나무처럼 곧고 진취적. 리더십·명분 중시, 굽히기 싫어함.',
+  을: '넝쿨·화초처럼 유연하고 끈질김. 현실 적응·관계 감각이 뛰어남.',
+  병: '태양 같은 화기. 밝고 표현력 강하며 주목받는 자리에 어울림.',
+  정: '촛불·별빛 같은 섬세한 불. 따뜻하고 배려 깊으나 예민함.',
+  무: '큰 산·대지의 토. 묵직하고 포용력 있으며 신뢰를 줌.',
+  기: '밭흙·정원의 토. 실속 있고 세심하며 실무·양육에 강함.',
+  경: '단단한 쇠·바위. 결단력·의리가 강하고 추진력이 매섭다.',
+  신: '보석·정제된 금. 예리하고 심미적이며 완성도를 추구.',
+  임: '큰 강·바다의 수. 지혜롭고 스케일 크며 흐름을 읽는다.',
+  계: '이슬·시냇물의 수. 총명하고 감수성 깊으며 유연히 스며든다.'
+};
+const EL_LIFE = {
+  목: { life: '성장·기획·교육·창작', season: '봄', dir: '동쪽', body: '간·담' },
+  화: { life: '표현·예술·홍보·열정', season: '여름', dir: '남쪽', body: '심장·소장' },
+  토: { life: '중재·부동산·신뢰·관리', season: '환절기', dir: '중앙', body: '비·위' },
+  금: { life: '결단·금융·법·정밀', season: '가을', dir: '서쪽', body: '폐·대장' },
+  수: { life: '지혜·연구·유통·소통', season: '겨울', dir: '북쪽', body: '신장·방광' }
+};
+
+// =====================================================================
+// 차트 결과 심화 해석 파생 — 전부 SAJU.compute/analyze 결과에서 결정적으로 파생.
+// 가짜 랜덤 0. 십신(十神) 오행 관계로 재물/연애/직장/건강을 읽는 명리 정통 로직.
+//  재성(내가 극하는 오행)=재물, 관성(나를 극하는 오행)=직장·명예,
+//  식상(내가 생하는 오행)=표현·연애매력, 인성(나를 생하는 오행)=배움·귀인,
+//  비겁(같은 오행)=자립·동료. 배우자성: 남=재성, 여=관성(전통).
+// =====================================================================
+
+// 오행 세력을 '충만/적절/결핍' 3단으로 판정 (사주 8글자 중 개수 기준, 결정적)
+function elTier(cnt, el) {
+  const v = cnt[el] || 0;
+  if (v >= 3) return 'over';   // 과다
+  if (v >= 1) return 'have';   // 보유
+  return 'none';               // 결핍
+}
+
+// 도메인별 십신 근거 해석 — [결핍, 보유, 과다] 세 톤. 순수 해석, 수치·확률 없음.
+const DOMAIN_READ = {
+  재물: {
+    icon: '💰', label: '재물',
+    none: '재성(財)이 옅어 큰돈을 좇기보다 <b>기술·전문성으로 값을 올리는</b> 편이 이롭습니다. 목돈은 한 번에보다 꾸준히 모을 때 붙습니다.',
+    have: '재성이 자리를 잡아 <b>현실 감각과 재물 운용력</b>이 있습니다. 벌이와 관리의 균형이 맞아 실속을 챙기는 유형입니다.',
+    over: '재성이 넘쳐 <b>돈과 기회가 몰리되 관리가 관건</b>. 벌리는 만큼 새기 쉬우니 절제와 분산이 곧 부(富)를 지킵니다.'
+  },
+  직장: {
+    icon: '💼', label: '직장·명예',
+    none: '관성(官)이 옅어 <b>틀에 매이기보다 자기 무대에서 빛나는</b> 유형. 조직보다 전문·프리·창업 길에서 자유롭게 큽니다.',
+    have: '관성이 갖춰져 <b>책임을 맡을수록 인정받는</b> 결. 공적인 자리·직책·평가에서 신뢰가 쌓이며 승진 운이 따릅니다.',
+    over: '관성이 강해 <b>압박과 책임이 큰 대신 권위·지위</b>를 크게 얻습니다. 힘을 감당할 실력을 갖추면 크게 오릅니다.'
+  },
+  연애: {
+    icon: '💗', label: '연애·인연',
+    none: '배우자성이 옅어 <b>인연은 서두르지 않을 때 깊게</b> 옵니다. 나를 알아보는 사람을 기다릴 가치가 있습니다.',
+    have: '배우자성이 자리해 <b>인연의 결이 또렷</b>합니다. 진솔함이 매력이 되어 오래가는 관계를 만드는 유형입니다.',
+    over: '배우자성이 강해 <b>인기와 인연이 많되 선택이 관건</b>. 마음을 한곳에 모을 때 관계가 깊어집니다.'
+  }
+};
+
+// 마지막 계산 결과 보관 (운세 해석에서 재사용)
+// var (not let): saju-ui.js assigns bare lastChart after generate — classic-script let is not window-visible.
+var lastChart = null, lastAnalysis = null;
+function syncLastChartFromUI() {
+  try {
+    if (!lastChart && window.lastChart) lastChart = window.lastChart;
+    if (!lastAnalysis && window.lastAnalysis) lastAnalysis = window.lastAnalysis;
+    if (!lastChart && window.SajuUI && SajuUI.state && SajuUI.state.chart) {
+      lastChart = SajuUI.state.chart;
+      lastAnalysis = SajuUI.state.anal || lastAnalysis;
+    }
+  } catch (e) {}
+}
+
+// 일간·분석·성별로부터 재물/직장/연애 3도메인을 결정적으로 읽어냄
+function readDomains(chart, A, gender) {
+  const dmEl = SAJU.STEM_EL[chart.dayMaster];
+  const wealthEl = SAJU.OVERCOME[dmEl];       // 재성
+  const officeEl = SAJU.OVERCOME_BY[dmEl];    // 관성
+  // 배우자성: 남=재성, 여=관성 (전통 명리)
+  const loveEl = gender === 'f' ? officeEl : wealthEl;
+  const pick = (dom, el) => {
+    const d = DOMAIN_READ[dom];
+    return { icon: d.icon, label: d.label, el, text: d[elTier(A.cnt, el)] };
+  };
+  return [
+    pick('재물', wealthEl),
+    pick('직장', officeEl),
+    pick('연애', loveEl)
+  ];
+}
+
+// 올해(연간지)·이달(월간지) 대운 흐름을 일간과의 십신으로 결정적으로 한 줄씩
+function readFlow(chart) {
+  const dm = SAJU.STEM_EL[chart.dayMaster];
+  const now = new Date();
+  const rel = (el) => {
+    if (el === dm) return { r: '비겁', t: '내 힘과 주관이 서는', tone: '자립·확장' };
+    if (SAJU.GEN[dm] === el) return { r: '식상', t: '표현하고 내보이면 통하는', tone: '창작·베풂' };
+    if (SAJU.OVERCOME[dm] === el) return { r: '재성', t: '현실 성과와 재물이 손에 잡히는', tone: '실속·수확' };
+    if (SAJU.OVERCOME_BY[dm] === el) return { r: '관성', t: '책임과 인정이 따르는', tone: '성취·지위' };
+    return { r: '인성', t: '배우고 채우며 귀인이 돕는', tone: '성장·회복' };
+  };
+  // 올해: 입춘 경계 반영한 연간
+  let yy = now.getFullYear();
+  const mm = now.getMonth() + 1, dd = now.getDate();
+  if (mm < 2 || (mm === 2 && dd < 4)) yy -= 1;
+  const yStem = SAJU.STEMS[((yy - 4) % 10 + 10) % 10];
+  const yearEl = SAJU.STEM_EL[yStem];
+  // 이달: 월주 천간 오행 (compute 재사용)
+  const mChart = SAJU.compute(now.getFullYear(), mm, dd, 12, 0);
+  const monthEl = SAJU.STEM_EL[mChart.month.stem];
+  const yr = rel(yearEl), mr = rel(monthEl);
+  return {
+    year: `올해는 <b style="color:${SAJU.EL_COLOR[yearEl]}">${yearEl}</b>의 해 — ${yr.t} <b>${yr.tone}</b>의 흐름입니다.`,
+    month: `이달은 <b style="color:${SAJU.EL_COLOR[monthEl]}">${monthEl}</b>의 달 — ${mr.t} <b>${mr.tone}</b>의 기운이 짙습니다.`
+  };
+}
+
+// 용신을 실전 언어로 — 어떤 색·방향·활동을 곁에 두면 균형이 잡히는가 (결정적)
+function readYongsin(A) {
+  const y0 = A.yongsin[0], y1 = A.yongsin[1];
+  const L0 = EL_LIFE[y0], L1 = EL_LIFE[y1];
+  return `당신을 살리는 기운은 <b style="color:${SAJU.EL_COLOR[y0]}">${y0}</b>·<b style="color:${SAJU.EL_COLOR[y1]}">${y1}</b>. `
+    + `<b>${L0.dir}</b> 방향, <b>${L0.season}</b>의 리듬, <b>${L0.life}</b> 같은 일이 당신의 기운을 채웁니다. `
+    + `흐름이 막힐 땐 ${y1}(${L1.life})의 결을 곁에 두세요.`;
+}
+
+// 히어로 한 줄 정체성 — 첫 3초 주인공. 일간 + 신강약 + 대표 결.
+const DM_ARCHETYPE = {
+  갑: '곧게 뻗는 개척자', 을: '유연히 감기는 생명력', 병: '세상을 밝히는 태양',
+  정: '은은히 스미는 촛불', 무: '흔들리지 않는 큰 산', 기: '품어 기르는 대지',
+  경: '벼려진 강철의 결단', 신: '정제된 보석의 예리함', 임: '스케일 큰 바다', 계: '총명하게 스미는 이슬'
+};
+
+function generateSaju() {
+  const birthEl = document.getElementById('birth');
+  const birth = birthEl ? birthEl.value : '';
+  const timeEl = document.getElementById('time');
+  const time = (timeEl && timeEl.value) || '12:00';
+  const genderEl = document.getElementById('gender');
+  const gender = genderEl ? genderEl.value : 'm';
+  if (!birth) return alert('생일 입력');
+
+  const [y, m, d] = birth.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  const chart = SAJU.compute(y, m, d, hh, mm);
+  const A = SAJU.analyze(chart);
+  lastChart = chart; lastAnalysis = A;
+  try { window.lastChart = chart; window.lastAnalysis = A; } catch (e) {}
+
+  const pcell = (label, p) => `
+    <div class="pillar">
+      <b>${label}</b>
+      <div class="p-gz">${p.stem}${p.branch}</div>
+      <div class="p-hanja">${p.hanja}</div>
+      <div class="p-el" style="color:${SAJU.EL_COLOR[p.el]}">${p.el}</div>
+    </div>`;
+  // #pillars removed from modern UI (myeongsik host) — guard so legacy callers don't throw
+  const pillarsEl = document.getElementById('pillars');
+  if (pillarsEl) pillarsEl.innerHTML =
+    pcell('시', chart.hour) + pcell('일', chart.day) +
+    pcell('월', chart.month) + pcell('년', chart.year);
+
+  // --- 오행 분포 막대 ---
+  const cnt = A.cnt, total = 8;
+  const bars = ['목', '화', '토', '금', '수'].map(e => {
+    const pct = Math.round(cnt[e] / total * 100);
+    return `<div class="el-row">
+      <span class="el-name" style="color:${SAJU.EL_COLOR[e]}">${e} ${cnt[e]}</span>
+      <span class="el-bar"><i style="width:${pct}%;background:${SAJU.EL_COLOR[e]}"></i></span>
+    </div>`;
+  }).join('');
+
+  const dm = chart.dayMaster;
+  const dmEl = SAJU.STEM_EL[dm];
+  const trait = DAY_MASTER_TRAIT[dm];
+  const life = EL_LIFE[dmEl];
+  const strengthTxt = A.strong
+    ? `<b>신강(身强)</b> — 일간의 힘이 넉넉합니다. 뻗어나가고 베푸는 <b>${A.yongsin[0]}·${A.yongsin[1]}</b> 기운을 쓸 때 그릇이 커집니다.`
+    : `<b>신약(身弱)</b> — 일간의 뿌리가 여립니다. 나를 돕는 <b>${A.yongsin[0]}·${A.yongsin[1]}</b> 기운을 채울 때 안정됩니다.`;
+  const missingTxt = A.missing.length
+    ? `없는 오행 <b style="color:${SAJU.EL_COLOR[A.missing[0]]}">${A.missing.join('·')}</b> — ${EL_LIFE[A.missing[0]].life} 영역을 의식적으로 보완하면 균형이 잡힙니다.`
+    : `오행이 고루 갖춰져 있어 <b>균형형</b> 사주입니다.`;
+
+  const elementsEl = document.getElementById('elements');
+  if (elementsEl) elementsEl.innerHTML = `
+    <div class="card reading-block">
+      <div class="dm-line">일간 <b class="dm">${dm}(${SAJU.STEM_HANJA[dm]})</b>
+        · ${dmEl}(${A.dmYY}) · 띠: ${chart.zodiac}띠</div>
+      <p class="trait">${trait}</p>
+      <div class="el-chart">${bars}</div>
+      <p class="analysis">${strengthTxt}</p>
+      <p class="analysis">가장 강한 기운 <b style="color:${SAJU.EL_COLOR[A.strongest]}">${A.strongest}</b>,
+        가장 약한 기운 <b style="color:${SAJU.EL_COLOR[A.weakest]}">${A.weakest}</b>. ${missingTxt}</p>
+      <p class="analysis small">
+        타고난 결: <b>${life.life}</b> · 활력의 계절 <b>${life.season}</b> ·
+        방향 <b>${life.dir}</b> · 돌볼 곳 <b>${life.body}</b>
+        ${gender === 'f' ? '' : ''}</p>
+    </div>`;
+
+  const chartEl = document.getElementById('chart');
+  if (chartEl) chartEl.classList.remove('hidden');
+  const readingHide = document.getElementById('reading');
+  if (readingHide) readingHide.classList.add('hidden');
+  const pillarsText = (document.getElementById('pillars') || {}).textContent || '';
+  drawSajuCanvas(pillarsText, 70, A.cnt);
+  if (window.p6LungSurpriseEye) console.log('[p20] p6 lung eye available for fate canvas');
+  // 계측: 사주 차트 생성 성공 = 활성화
+  if (window.legionTrack) window.legionTrack('activate');
+}
+
+function doReading() {
+  syncLastChartFromUI();
+  if (freeLeft <= 0 && !confirm('오늘 무료 열람을 다 쓰셨어요. 프리미엄 상세 풀이로 이어볼까요? (가상 엔터테인먼트)')) return;
+  const reading = getSajuReading();
+  // 근접(near-miss)·공명·반전을 사주 언어로 표현 (개발 용어/슬롯 은어 제거 — 유저는 명리 톤만 봄)
+  const nearMissLine = reading.nearMiss
+    ? ' <span class="surprise">⚡ 대길의 문턱 — 한 끗 차이로 스쳤습니다. 흐름이 무르익는 중이니 다음 결이 더 짙습니다.</span>'
+    : '';
+  const readingTextEl = document.getElementById('readingText');
+  if (readingTextEl) readingTextEl.innerHTML = reading.text + nearMissLine;
+  // 공명도(resonance)를 '기운의 결' 강도로 은유. 반전(pity)은 흐름 전환 서사.
+  const resPct = Math.round((parseFloat(reading.res) || 0.5) * 100);
+  let sub = '';
+  if (reading.pity) sub = '🌟 흐름의 반전 — 막혔던 기운이 풀리기 시작합니다.';
+  else if (reading.multi > 1.25) sub = `✨ 오늘 기운의 결이 유난히 선명합니다 (공명 ${resPct}%).`;
+  else if (reading.multi > 1.1) sub = `기운의 결 공명 ${resPct}% — 결이 또렷한 편입니다.`;
+  const surpriseEl = document.getElementById('surprise');
+  if (surpriseEl) surpriseEl.innerHTML = sub;
+  try { renderDomainFortune(); renderLuckyItems(); } catch (e) {}
+  const readingEl = document.getElementById('reading');
+  if (readingEl) {
+    readingEl.classList.remove('hidden');
+    readingEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (freeLeft > 0) freeLeft--;
+  updateFomo();
+  localStorage.setItem('readingLast', JSON.stringify(reading));
+  recordToCodex('saju', reading.plain || reading.text, reading.score, reading);
+  // DNA birth: meaningful read → spore (shared legion_birth_artifacts)
+  try { birthFateSpore({ silent: true, type: 'saju-spore', power: Math.floor((reading.score || 70) * 0.12) }); } catch (e) {}
+  bumpStreak();
+  renderMiniDash();
+  // share-at-peak: result moment = highest intent to share (Contagious + Niobe)
+  setTimeout(() => offerSharePeak(reading), 480);
+  // money-pipe: 결과 직후 현금/심화 구멍 (3H CRO)
+  setTimeout(() => { try { showMoneyPipe(); } catch (e) {} }, 900);
+  if (window.legionTrack) try { window.legionTrack('first_read', { score: reading.score }); } catch (e) {}
+  // loss if no window active
+  const inWindow = document.querySelector('#fateWindows .open');
+  if (!inWindow) OutcomeEngine.applyLoss(true);
+}
+
+// 십신(十神)별 깊은 해석 사전 — 관계마다 흐름/오늘 할 일/조심할 것/키워드
+// 명리 고전(비겁·식상·재성·관성·인성)의 실제 의미에 근거. 결정적 매핑(가짜 없음).
+const SIPSIN = {
+  비겁: {
+    flow: '동료·경쟁·자립의 기운이 나와 어깨를 나란히 하는 날. 내 주관과 추진력이 살아나지만, 같은 힘이 부딪히면 고집·경쟁으로도 흐릅니다.',
+    do: '스스로 결정하고 밀어붙일 일, 동료·팀과 함께하는 작업, 운동·체력 쓰는 일',
+    avoid: '독단·과욕·불필요한 경쟁, 돈을 빌려주거나 크게 쓰는 것',
+    kw: ['자립', '팀워크', '경쟁']
+  },
+  식상: {
+    flow: '표현·창작·베풂의 기운이 밖으로 흐르는 날. 안에 있던 생각과 재능이 결과물·말로 터져 나옵니다. 반응이 오는 하루.',
+    do: '글·작품·기획을 내보이기, 발표·콘텐츠·SNS, 후배나 아랫사람 챙기기',
+    avoid: '말실수·과한 표현, 규칙을 어기는 즉흥, 윗사람과의 마찰',
+    kw: ['창작', '표현', '베풂']
+  },
+  재성: {
+    flow: '재물·현실 성과·실속의 기운이 손에 잡히는 날. 숫자와 결과로 움직이면 좋습니다. 다만 욕심의 과속은 화를 부릅니다.',
+    do: '거래·실무·정산·투자 검토, 현실적인 협상, 사람·자원 관리',
+    avoid: '충동구매·무리한 베팅, 감정적 소비, 몸을 혹사하는 무리',
+    kw: ['재물', '실무', '성과']
+  },
+  관성: {
+    flow: '규율·책임·인정의 기운이 나를 세우는 날. 공적인 자리·평가·시험에서 빛납니다. 원칙을 지키면 신뢰가 쌓이고, 무시하면 압박이 됩니다.',
+    do: '중요한 자리·면접·발표·계약, 원칙과 절차를 지키는 일, 윗사람과의 소통',
+    avoid: '규칙 위반·편법, 권위와의 정면충돌, 무리한 책임 떠안기',
+    kw: ['책임', '인정', '규율']
+  },
+  인성: {
+    flow: '배움·회복·귀인의 기운이 나를 채우는 날. 서두르기보다 쉬며 흡수할 때 힘이 붙습니다. 공부·문서·조언에서 도움이 옵니다.',
+    do: '공부·독서·자격, 문서·서류 정리, 조언 구하기·멘토 만나기, 충분한 휴식',
+    avoid: '과로·무리한 확장, 즉흥적 결정, 게으름으로 흘려보내기',
+    kw: ['배움', '회복', '귀인']
+  }
+};
+
+// 오늘의 일진(日辰) 오행이 내 일간과 맺는 십신(十神) 관계 → 실제 근거 있는 운세 방향
+function todayReadingBase() {
+  syncLastChartFromUI();
+  if (!lastChart) return null;
+  const dm = SAJU.STEM_EL[lastChart.dayMaster]; // 내 일간 오행
+  const now = new Date();
+  const dIdx = ((SAJU.jdn(now.getFullYear(), now.getMonth() + 1, now.getDate()) + 49) % 60 + 60) % 60;
+  const todayStem = SAJU.STEMS[dIdx % 10];
+  const todayBranch = SAJU.BRANCHES[dIdx % 12];
+  const todayEl = SAJU.STEM_EL[todayStem]; // 오늘 천간 오행
+  // 십신 관계 판정 (내 일간 기준 오늘 오행이 무엇인가)
+  let relation;
+  if (todayEl === dm) relation = '비겁';
+  else if (SAJU.GEN[dm] === todayEl) relation = '식상';
+  else if (SAJU.OVERCOME[dm] === todayEl) relation = '재성';
+  else if (SAJU.OVERCOME_BY[dm] === todayEl) relation = '관성';
+  else relation = '인성';
+  const sip = SIPSIN[relation];
+  // 용신에 오늘 오행이 맞으면 길함 가중 (진짜 사주 근거)
+  const aligned = lastAnalysis && lastAnalysis.yongsin.includes(todayEl);
+  // 오늘 오행이 내가 없는 오행이면 "채워지는 날" (실제 분석 정합)
+  const fillsMissing = lastAnalysis && lastAnalysis.missing.includes(todayEl);
+  // 오늘 오행이 이미 과다한 오행이면 "가중되는 날" (주의)
+  const overloads = lastAnalysis && lastAnalysis.cnt[todayEl] >= 3;
+  return { relation, text: sip.flow, sip, todayStem, todayBranch, todayEl, aligned, fillsMissing, overloads, dm };
+}
+
+// 사용자 고유 사주와 오늘 일진을 엮은 개인 맞춤 통찰 한 줄 (진짜 분석 근거)
+function personalInsight(base) {
+  if (!base || !lastAnalysis) return '';
+  const A = lastAnalysis;
+  if (base.fillsMissing)
+    return `평소 <b style="color:${SAJU.EL_COLOR[base.todayEl]}">${base.todayEl}</b>이(가) 없던 사주인데, 오늘 그 기운이 채워집니다 — <b>귀한 하루</b>. ${EL_LIFE[base.todayEl].life} 쪽 일을 붙잡으세요.`;
+  if (base.aligned)
+    return `오늘 기운이 당신에게 필요한 <b>용신(${A.yongsin[0]}·${A.yongsin[1]})</b> 방향과 맞물립니다 — 흐름을 거스르지 말고 <b>순풍에 올라타세요</b>.`;
+  if (base.overloads)
+    return `이미 강한 <b style="color:${SAJU.EL_COLOR[base.todayEl]}">${base.todayEl}</b> 기운이 오늘 더해집니다 — 과유불급. <b>한 박자 늦추고</b> 균형을 의식하세요.`;
+  // 신강/신약에 따른 일반 조언
+  return A.strong
+    ? `신강한 사주라 오늘도 힘이 넘칩니다 — 안으로 쌓기보다 <b>밖으로 베풀고 내보낼 때</b> 그릇이 커집니다.`
+    : `신약한 사주라 무리는 금물 — 오늘은 <b>돕는 손을 빌리고 나를 채우는 쪽</b>이 이롭습니다.`;
+}
+
+/* ===== 세분화 일일 운세(생활 영역별) + 행운 아이템 — 전부 결정적(명리 근거, 랜덤 없음) ===== */
+// 각 생활 영역을 주관하는 십신을 일간 기준 오행으로 환산.
+// 재성=내가 극(財)·관성=나를 극(官)·인성=나를 생(印)·식상=내가 생(食傷)·비겁=동기(比劫)
+function domainSpec(dm, gender) {
+  const jae = SAJU.OVERCOME[dm];       // 재성
+  const gwan = SAJU.OVERCOME_BY[dm];   // 관성
+  const ins = SAJU.GEN_BY[dm];         // 인성
+  const sik = SAJU.GEN[dm];            // 식상
+  const bi = dm;                       // 비겁
+  const spouse = gender === 'f' ? gwan : jae; // 여:정관(남편) 남:정재(처)
+  return [
+    { key: '재물', icon: '💰', el: jae, god: '재성', desc: '재물·실속·성과' },
+    { key: '애정·인연', icon: '💗', el: spouse, god: gender === 'f' ? '관성' : '재성', desc: '배우자궁·끌림', spouse: true },
+    { key: '직장·명예', icon: '🏛️', el: gwan, god: '관성', desc: '인정·책임·시험' },
+    { key: '학업·귀인', icon: '📖', el: ins, god: '인성', desc: '배움·문서·조력' },
+    { key: '소통·표현', icon: '🗣️', el: sik, god: '식상', desc: '창작·대인·말' },
+    { key: '건강·활력', icon: '🌿', el: bi, god: '비겁', desc: '체력·뿌리·기운' }
+  ];
+}
+// 같은 날엔 항상 같은 값이 나오는 결정적 미세 변주(-4..+4). Math.random 아님.
+function seededJitter(daySeed, i) { return ((daySeed * 7 + i * 13) % 9) - 4; }
+function domainScore(spec, i, ctx) {
+  const E = spec.el;
+  let s = 54;
+  if (ctx.todayEl === E) s += 15;                       // 오늘 그 기운이 직접 온다
+  else if (SAJU.GEN[ctx.todayEl] === E) s += 9;         // 오늘이 그 기운을 생함
+  else if (SAJU.OVERCOME[ctx.todayEl] === E) s -= 7;    // 오늘이 그 기운을 극함
+  if (ctx.yongsin.includes(E)) s += 11;                 // 용신 영역 = 이로움
+  else if (ctx.gisin && ctx.gisin.includes(E)) s -= 7;  // 기신 영역 = 부담
+  const cE = ctx.cnt[E] || 0;
+  if (cE === 0) s -= 6; else if (cE >= 3) s += 5;        // 사주 내 결핍/과다
+  if (spec.spouse && SAJU.BRANCH_EL[ctx.todayBranch] === E) s += 5; // 배우자궁 호응
+  if (spec.key === '건강·활력') {
+    if (ctx.todayEl === SAJU.OVERCOME_BY[ctx.dm] && !ctx.strong) s -= 6; // 신약한데 관성 극
+    else if (ctx.todayEl === ctx.dm || ctx.todayEl === SAJU.GEN_BY[ctx.dm]) s += 5; // 일간 부조
+  }
+  s += seededJitter(ctx.daySeed, i);
+  return Math.max(22, Math.min(97, Math.round(s)));
+}
+function domainLine(spec, score) {
+  if (score >= 82) return `활짝 열림 — ${spec.desc} 흐름을 적극 붙잡기 좋은 날.`;
+  if (score >= 68) return `순조로움 — ${spec.desc} 쪽에 무게를 실어도 좋습니다.`;
+  if (score >= 52) return `무난 — 큰 굴곡 없이 평이한 결.`;
+  if (score >= 38) return `주의 — ${spec.desc}은 서두르지 말고 한 박자 늦추세요.`;
+  return `쉬어감 — 오늘은 ${spec.desc} 무리 금물, 힘을 아끼세요.`;
+}
+function todayDomainFortune() {
+  syncLastChartFromUI();
+  if (!lastChart || !lastAnalysis) return null;
+  const dm = SAJU.STEM_EL[lastChart.dayMaster];
+  const gender = (window.SajuUI && SajuUI.state && SajuUI.state.gender) ||
+    ((document.getElementById('gender') || {}).value) || 'm';
+  const now = new Date();
+  const dIdx = ((SAJU.jdn(now.getFullYear(), now.getMonth() + 1, now.getDate()) + 49) % 60 + 60) % 60;
+  const todayEl = SAJU.STEM_EL[SAJU.STEMS[dIdx % 10]];
+  const todayBranch = SAJU.BRANCHES[dIdx % 12];
+  const ctx = {
+    todayEl, todayBranch, cnt: lastAnalysis.cnt || {}, yongsin: lastAnalysis.yongsin || [],
+    gisin: lastAnalysis.gisin || [], dm, strong: !!lastAnalysis.strong, daySeed: dIdx
+  };
+  return domainSpec(dm, gender).map((sp, i) => {
+    const sc = domainScore(sp, i, ctx);
+    return { sp, sc, line: domainLine(sp, sc) };
+  });
+}
+function renderDomainFortune() {
+  const host = document.getElementById('domainFortune'); if (!host) return;
+  const doms = todayDomainFortune(); if (!doms) { host.innerHTML = ''; return; }
+  const rows = doms.map(d => {
+    const col = SAJU.EL_COLOR[d.sp.el] || '#c5a46e';
+    return `<div class="dom-row">` +
+      `<div class="dom-head"><span class="dom-name">${d.sp.icon} ${d.sp.key}</span>` +
+      `<span class="dom-god" style="color:${col}">${d.sp.god}·${d.sp.el}</span>` +
+      `<span class="dom-sc" style="color:${col}">${d.sc}</span></div>` +
+      `<div class="el-bar"><i style="width:${d.sc}%;background:${col}"></i></div>` +
+      `<div class="dom-line">${d.line}</div></div>`;
+  }).join('');
+  host.innerHTML = `<div class="dom-card"><div class="dom-title">오늘의 영역별 세부 운세` +
+    `<span class="dom-sub">일진 기준 · 매일 달라집니다</span></div>${rows}</div>`;
+}
+const HADO_NUM = { 수: [1, 6], 화: [2, 7], 목: [3, 8], 금: [4, 9], 토: [5, 10] };
+const EL_DIR = { 목: '동쪽', 화: '남쪽', 토: '중앙', 금: '서쪽', 수: '북쪽' };
+const EL_COLNAME = { 목: '청록', 화: '붉은', 토: '노란', 금: '흰', 수: '검은·남색' };
+const EL_TIME = { 목: '인·묘시 (03–07시)', 화: '사·오시 (09–13시)', 토: '진·술·축·미시', 금: '신·유시 (15–19시)', 수: '해·자시 (21–01시)' };
+function renderLuckyItems() {
+  const host = document.getElementById('luckyItems'); if (!host) return;
+  syncLastChartFromUI();
+  if (!lastAnalysis || !lastAnalysis.yongsin) { host.innerHTML = ''; return; }
+  const E = lastAnalysis.yongsin[0];
+  const col = SAJU.EL_COLOR[E] || '#c5a46e';
+  const nums = HADO_NUM[E] || [];
+  host.innerHTML = `<div class="lucky-card">` +
+    `<div class="lucky-title">나의 행운 아이템 <span class="lucky-sub">용신 <b style="color:${col}">${E}</b> 기준</span></div>` +
+    `<div class="lucky-grid">` +
+    `<div class="lucky-chip"><span>행운의 수</span><b style="color:${col}">${nums.join(' · ')}</b></div>` +
+    `<div class="lucky-chip"><span>행운의 색</span><b style="color:${col}">${EL_COLNAME[E]} 계열</b></div>` +
+    `<div class="lucky-chip"><span>행운의 방위</span><b style="color:${col}">${EL_DIR[E]}</b></div>` +
+    `<div class="lucky-chip"><span>행운의 시간</span><b style="color:${col}">${EL_TIME[E]}</b></div>` +
+    `</div>` +
+    `<p class="lucky-note">용신은 당신에게 부족해 보완이 이로운 기운입니다. 위 항목은 그 오행에서 도출한 상징으로, 재미로 곁에 두는 엔터테인먼트 요소입니다.</p>` +
+    `</div>`;
+}
+
+function getSajuReading() {
+  const base = todayReadingBase();
+  const texts = base ? [base.text] : [
+    "재물운 상승. 사업/투자 타이밍 좋음.",
+    "인간관계 주의. 신중한 선택 필요.",
+    "건강/휴식 우선. 새로운 기회 대기.",
+    "학업/창작 분야 강세. 표현력 UP."
+  ];
+  // 결정적 데일리 난수 — 같은 사람·같은 날엔 항상 같은 지수 (새로고침해도 안 바뀜)
+  const rnd = seededRand(dailySeed());
+  const idx = base ? 0 : Math.floor(rnd()*texts.length);
+  // 같은 날 재조회는 캐시 재사용 — pityStreak 등 상태 변이가 같은 날 점수를 흔들지 못하게.
+  const cacheKey = dailySeed() + ':' + new Date().toDateString();
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem('sajuScoreCache') || 'null'); } catch (e) {}
+  let shownScore, surprise, nearMiss, pity, multi;
+  if (cached && cached.k === cacheKey) {
+    shownScore = cached.s; surprise = cached.su; nearMiss = cached.nm; pity = cached.p; multi = cached.m;
+    OutcomeEngine.updateResonance(rnd); // resonance 표시값도 동일 시드로 복원
+  } else {
+  // 일진이 용신과 맞으면 기본점수 상향 (실제 사주 정합)
+  const alignBonus = base && base.aligned ? 12 : 0;
+  const rawScore = 58 + alignBonus + Math.floor(rnd()*(37 - alignBonus/2));
+  OutcomeEngine.updateResonance(rnd);
+  const historyAvg = getCodexAvg();
+  let score = OutcomeEngine.variableOutcome(rawScore, historyAvg, rnd);
+  const isBad = score < 62;
+  score = OutcomeEngine.applyNearMissPity(score, isBad, rnd);
+  if (isBad) pityStreak++; localStorage.setItem('sajuPity', pityStreak);
+  // 재보정: 기존 multi(0.9+res*0.85+0.55)는 평균 ×1.4 → 전원 만점. 표시 배율은 ±10% 이내로.
+  multi = 0.97 + OutcomeEngine.resonance * 0.06 + (rnd() > 0.85 ? 0.08 : 0);
+  surprise = multi > 1.08 || rnd() > 0.8;
+  nearMiss = (score % 7 === 0 || rnd() > 0.71) && score < 88;
+  if (nearMiss) score = Math.min(94, score + 2);
+  pity = pityStreak >= 2;
+  const finalScore = Math.floor(score * (pity ? 1.12 : 1) * multi);
+  shownScore = Math.min(99, finalScore);
+  try { localStorage.setItem('sajuScoreCache', JSON.stringify({ k: cacheKey, s: shownScore, su: surprise, nm: nearMiss, p: pity, m: multi })); } catch (e) {}
+  }
+  let text, plain;
+  if (base) {
+    // 깊은 구조화 해석: 일진 헤더 + 흐름 + 개인 통찰 + 오늘 할 일/조심할 것 + 키워드
+    const insight = personalInsight(base);
+    const kw = base.sip.kw.map(k => `<span class="kw">#${k}</span>`).join(' ');
+    text =
+      `<div class="today-rel">오늘의 일진 <b>${base.todayStem}${base.todayBranch}(${base.todayEl})</b> · ${base.relation}` +
+      `${base.aligned ? ' <span class="aligned">✦ 용신과 조화</span>' : ''}` +
+      `${base.fillsMissing ? ' <span class="aligned">✦ 없던 오행 보충</span>' : ''}</div>` +
+      `<p class="flow">${base.sip.flow}</p>` +
+      (insight ? `<p class="insight">🔎 ${insight}</p>` : '') +
+      `<div class="advice">` +
+        `<div class="adv-do"><b>오늘 하면 좋은 것</b><br>${base.sip.do}</div>` +
+        `<div class="adv-no"><b>오늘 조심할 것</b><br>${base.sip.avoid}</div>` +
+      `</div>` +
+      `<div class="kws">${kw}</div>` +
+      `<div class="fortune-idx">오늘의 운세 지수 <b>${shownScore}</b></div>`;
+    // Codex/공유용 깨끗한 요약 (HTML 없이)
+    plain = `${base.todayStem}${base.todayBranch}(${base.todayEl})·${base.relation} — 오늘은 ${base.sip.kw[0]}의 기운 (운세 ${shownScore})`;
+  } else {
+    const idx0 = Math.floor(rnd() * texts.length);
+    text = texts[idx0] + ` (운세 지수 ${shownScore})`;
+    plain = text;
+  }
+  return {
+    text,
+    plain,
+    score: shownScore,
+    surprise,
+    multi: multi,
+    res: OutcomeEngine.resonance.toFixed(2),
+    nearMiss,
+    pity
+  };
+}
+
+function getCodexAvg() {
+  const c = JSON.parse(localStorage.getItem(CODEX_KEY)||'[]');
+  if (!c.length) return 72;
+  return c.reduce((a,b)=>a+(b.score||70),0)/c.length;
+}
+
+function voiceReading() {
+  const text = document.getElementById('readingText').textContent || '사주 분석을 먼저 실행하세요.';
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'ko-KR';
+  speechSynthesis.speak(utter);
+  const s = OutcomeEngine.resonance || Math.random();
+  if (s > 0.55) {
+    const el = document.getElementById('surprise');
+    if (el && !el.innerHTML.includes('낭독')) el.innerHTML += ` <span style="opacity:.7">· 낭독으로 들으니 결이 더 깊게 스밉니다.</span>`;
+  }
+}
+
+function unlockPremium() {
+  // ⚠️ 이건 **무료 맛보기**다. 250⭐ 유료 상품(정식 리딩)과 이름·표기가 겹치면 안 된다.
+  //    유료 상품은 saju-pay.js → 서버 /consume → window.SajuPremium.render() 경로로만 열린다.
+  if (!confirm('맛보기 풀이 — 무료 요약본입니다. 계속할까요?')) return;
+  const detail = '맛보기: 3개월 대운 흐름 요약. (정식 리딩은 영역별 상세 분석이 포함됩니다)';
+  document.getElementById('readingText').innerHTML += `<br><br><b>맛보기 풀이 (무료):</b> ${detail}`;
+  recordToCodex('saju-taste', detail, 95);
+  triggerLimitedBanner();
+  try { if (window.legionTrack) legionTrack('activate', { feature: 'taste_reading' }); } catch (e) {}
+  showMoneyPipe();
+}
+
+/** 현금 파이프 1: 결과 직후 후원/심화 CTA (엔터 트랙 · 투자 아님) */
+function showMoneyPipe() {
+  let el = document.getElementById('moneyPipe');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'moneyPipe';
+    el.className = 'money-pipe';
+    el.style.cssText = 'margin:14px 0;padding:14px;border:1px solid #c5a46e55;border-radius:12px;background:#1a1520;text-align:center';
+    const host = document.getElementById('reading') || document.querySelector('main');
+    if (host) host.appendChild(el);
+  }
+  el.innerHTML =
+    '<div style="color:#e0b552;font-weight:700;font-size:14px;margin-bottom:6px">💎 오늘의 흐름 더 깊게 · 정진 1방</div>' +
+    '<p style="font-size:12px;opacity:.8;margin:0 0 10px">엔터테인먼트 후원 · 투자 권유 아님 · 운명 확정 아님</p>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">' +
+    '<button type="button" class="secondary" onclick="unlockPremium()">맛보기 풀이 (무료)</button>' +
+    '' +
+    '<button type="button" class="secondary" onclick="shareResult && shareResult()">📤 공유하고 무료 리필</button>' +
+    '</div>';
+  try { if (window.legionTrack) legionTrack('money_pipe_shown', { app: (window.LEGION_APP || 'saju-miniapp'), duo: 'tarot' }); } catch (e) {}
+  // 💳 유료 진입점(250⭐ 정식 리딩). 텔레그램 밖·백엔드 미설정이면 스스로 잠긴 상태로 렌더된다.
+  try { if (window.SajuPay) window.SajuPay.mount('moneyPipe'); } catch (e) {}
+}
+
+function recordToCodex(type, text, score, extra={}) {
+  let codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+  const relicPower = Math.floor((score||70) * (0.6 + (OutcomeEngine.resonance||0.5)));
+  const entry = {
+    // 로컬 시각 기준 ISO 유사 문자열(YYYY-MM-DDTHH:mm) — UTC toISOString은 KST에서 날짜가 하루 어긋나 기록 날짜가 틀리게 표시됨
+    ts: (() => { const d = new Date(); const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; })(),
+    type,
+    text: text.slice(0,118),
+    score: Math.min(99,score||70),
+    relicLevel: (extra.nearMiss ? 2 : 1) + Math.floor(Math.random()*2),
+    power: relicPower,
+    multi: extra.multi || 1
+  };
+  codex.unshift(entry);
+  if (codex.length > 18) codex.pop();
+  localStorage.setItem(CODEX_KEY, JSON.stringify(codex));
+  showCodex();
+}
+
+function showCodex() {
+  const list = document.getElementById('codexList');
+  if (!list) return;
+  const codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+  renderMiniDash();
+  renderStreak();
+  if (!codex.length) {
+    list.innerHTML = '<div class="card empty-cta">'
+      + '<p>아직 기록이 없어요.<br>명식을 뽑고 오늘의 운세를 열면 여기에 쌓입니다.</p>'
+      + '<button type="button" class="primary-cta" onclick="document.getElementById(\'input\').scrollIntoView({behavior:\'smooth\'});const b=document.querySelector(\'#input .primary-cta\');if(b)b.focus()">명식 뽑으러 가기</button>'
+      + '</div>';
+    return;
+  }
+  const TYPE_LABEL = { 'saju':'사주', 'saju-premium':'상세 풀이', '타로융합':'타로융합' };
+  list.innerHTML = '<div style="margin-bottom:8px"><button type="button" id="sajuDelLast" class="secondary" style="padding:4px 10px;font-size:12px">↩ 최근 기록 1건 삭제</button></div>'
+    + codex.map((c,i) => {
+    const lv = c.relicLevel || 1;
+    const pow = c.power || c.score;
+    const label = TYPE_LABEL[c.type] || c.type;
+    return `<div class="card relic" data-idx="${i}">🜁 ${c.ts.slice(5,10)} · ${label} · ${c.text}<br><small>기록 Lv.${lv} • 기운 ${pow} • x${(c.multi||1).toFixed(1)} — <b>눌러서 기록 강화</b></small></div>`;
+  }).join('');
+  const delBtn = document.getElementById('sajuDelLast');
+  if (delBtn) delBtn.onclick = function (ev) {
+    ev.stopPropagation();
+    try {
+      const next = codex.slice(1);
+      localStorage.setItem(CODEX_KEY, JSON.stringify(next));
+      showCodex();
+      if (window.legionTrack) legionTrack('undo', { what: 'codex' });
+    } catch (e) {}
+  };
+  // Re-observe Codex that mutates UI (births) — one protagonist + sfumato + lung
+  list.onclick = (e) => {
+    if (e.target && e.target.id === 'sajuDelLast') return;
+    const el = e.target.closest('.relic'); if (!el) return;
+    const idx = parseInt(el.dataset.idx || '0');
+    reObserveCodex(idx);
+  };
+}
+
+// Re-observe Codex mutates UI + births (Da Vinci observation engine)
+function reObserveCodex(idx) {
+  let codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+  if (!codex[idx]) return;
+  const r = codex[idx];
+  r.power = Math.min(99, (r.power||r.score||62) + 5);
+  r.relicLevel = (r.relicLevel||1) + 1;
+  codex[idx] = r; localStorage.setItem(CODEX_KEY, JSON.stringify(codex));
+
+  // Canvas birth mutation (sfumato wheel evolves)
+  const c = document.getElementById('saju-canvas');
+  if (c) {
+    const ctx = c.getContext('2d');
+    const cx = c.width*0.5, cy = c.height*0.618;
+    ctx.strokeStyle = 'hsla(42,65%,82%,0.32)';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.arc(cx, cy, 57, 0, Math.PI*2); ctx.stroke();
+    // golden ratio new birth ring
+    ctx.lineWidth=0.9; ctx.strokeStyle='#c5a46e';
+    ctx.beginPath(); ctx.arc(cx, cy, 57*0.618, 0, Math.PI*2); ctx.stroke();
+  }
+  // Lung integration: re-observe feeds surprise breath
+  try {
+    const lung = JSON.parse(localStorage.getItem('p6_lungFragment')||'{"breath":0}');
+    lung.breath = ((lung.breath||0)+0.11)%6.28;
+    lung.lastSurprise = (lung.lastSurprise||0)*0.6 + 0.3;
+    localStorage.setItem('p6_lungFragment', JSON.stringify(lung));
+    if (window.p6LungSurpriseEye && c) window.p6LungSurpriseEye(c.getContext('2d'), c.width, c.height*0.58, lung, 0.48, {wound:0.55}, 0.22);
+  } catch(e){}
+  // UI birth element (restraint, one new soft note)
+  const birth = document.createElement('div');
+  birth.className='card'; birth.style.cssText='font-size:0.78rem;border-color:#c5a46e;margin-top:6px';
+  birth.textContent = `✧ 기록 강화: ${r.type} → Lv${r.relicLevel}`;
+  const sec = document.getElementById('codex'); if (sec) sec.appendChild(birth);
+  setTimeout(()=>{ birth.style.opacity='0.85'; },80);
+  try { birthFateSpore({ silent: true, type: 'reobserve-spore', power: r.power || r.score }); } catch (e) {}
+  showCodex();
+}
+
+// FOMO limited banner (scarcity)
+function triggerLimitedBanner() {
+  const b = document.getElementById('limitedBanner');
+  if (b) b.style.display = 'block';
+  setTimeout(() => { if(b) b.style.display='none'; }, 42000);
+}
+
+// p21 cross note + shared boost
+function initP21Link() {
+  // Fix: detect the actual p21 app via a p21-EXCLUSIVE key (tarotLuck), not the
+  // shared 'fateCodex' key — which p20 also writes, so the old check self-triggered
+  // on p20's own history (fabricated cross signal). Boost now only when p21 truly played.
+  const p21Played = localStorage.getItem('tarotLuck') !== null || localStorage.getItem('tarotPity') !== null;
+  if (p21Played) {
+    console.log('%c[p20] p21 tarot detected — real cross boost applied', 'color:#c9a');
+    baseLuck = Math.min(1.18, baseLuck + 0.06);
+  }
+}
+
+// === RECOMMENDED ACTIONS IMPLEMENTED (full agent meeting synthesis) ===
+// 1. Duo fusion: p21 tarot now mutates saju real + birth
+function mutateFromTarot(tarotScore, res) {
+  const s = JSON.parse(localStorage.getItem('sajuState')||'{}');
+  s.fused = Math.min(99, (s.fused||70) + Math.floor((tarotScore-70)*0.38));
+  s.luck = Math.min(1.45, (s.luck||1)+0.09);
+  localStorage.setItem('sajuState', JSON.stringify(s));
+  // Fix: call lung eye with the real signature (ctx,w,cy,lung,amp,spore,ache),
+  // not a bare number (which the guard silently no-op'd). Now duo-fusion actually renders on the wheel.
+  const c = document.getElementById('saju-canvas');
+  if (res > 0.8 && c && window.p6LungSurpriseEye) {
+    const ctx = c.getContext('2d');
+    const lung = JSON.parse(localStorage.getItem('p6_lungFragment')||'{"breath":0.6}');
+    window.p6LungSurpriseEye(ctx, c.width, c.height*0.58, lung, Math.min(1, res), {wound: 0.5 + s.fused*0.003}, 0.3);
+  }
+  if (s.fused > 86) recordToCodex('타로융합', '타로와 사주가 어우러진 운명 기록', s.fused);
+}
+window.mutateFromTarot = mutateFromTarot;
+
+// 2. p17 wallet pay for premium
+function payPremiumWithP17() {
+  if (localStorage.getItem('walletCodex')) {
+    const w = JSON.parse(localStorage.getItem('walletCodex')||'[]');
+    w.unshift({ts:Date.now(), type:'premium', text:'프리미엄 결제(가상)', power: 25});
+    localStorage.setItem('walletCodex', JSON.stringify(w));
+    alert('프리미엄 크레딧 25 차감(가상). 기록이 동기화됐어요.');
+    return true;
+  }
+  return false;
+}
+
+// 3. Virality share for p17 cross
+function shareWalletToFortune() {
+  const story = '내 운세 기록이 자라고 있어요. 가상 엔터테인먼트.';
+  navigator.clipboard.writeText(story + ' #오늘의운세').then(()=>alert('공유 완료! 보너스 크레딧 지급(가상).'));
+  // seed p20
+  const c = JSON.parse(localStorage.getItem(CODEX_KEY)||'[]');
+  c.unshift({ts:Date.now(), type:'공유', text:story, score:82});
+  localStorage.setItem(CODEX_KEY, JSON.stringify(c));
+}
+
+// === DEEP UPGRADES: shared Codex mutations, canvas, p6 full, p10, births, real timers, cross nav ===
+function mutateSharedFate(fromType, val) {
+  let codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+  if (codex.length) {
+    codex[0].power = Math.min(99, (codex[0].power||70) + Math.floor(val*0.6));
+    localStorage.setItem(CODEX_KEY, JSON.stringify(codex));
+  }
+  // p21 mutation reverse
+  let p21c = JSON.parse(localStorage.getItem('fateCodex')||'[]');
+  if (p21c[0]) { p21c[0].score = Math.min(99, (p21c[0].score||60) + Math.floor(val*0.4)); localStorage.setItem('fateCodex', JSON.stringify(p21c)); }
+  console.log('[p20-p21] Shared fate mutation applied');
+}
+
+// 오행 5원소: 목(청)·화(적)·토(황)·금(백금)·수(흑청) — 상생 오각별 휠. 간지 재작성 + 레티나 선명.
+const WHEEL_EL = [
+  { k:'목', col:'#4ec97a', glow:'rgba(78,201,122,0.55)' },
+  { k:'화', col:'#ff6b5c', glow:'rgba(255,107,92,0.55)' },
+  { k:'토', col:'#e0b552', glow:'rgba(224,181,82,0.55)' },
+  { k:'금', col:'#dfe4ea', glow:'rgba(223,228,234,0.5)' },
+  { k:'수', col:'#5c8dff', glow:'rgba(92,141,255,0.5)' },
+];
+function drawSajuCanvas(pillarsText, score, dist) {
+  const c = document.getElementById('saju-canvas');
+  if (!c) return;
+  // 레티나 선명화: CSS 크기 유지, 백버퍼 2x
+  const cssW = c.clientWidth || 300, cssH = c.clientHeight || 140;
+  const dpr = Math.min(3, window.devicePixelRatio || 2);
+  if (c.width !== Math.round(cssW*dpr)) { c.width = Math.round(cssW*dpr); c.height = Math.round(cssH*dpr); }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const w = cssW, h = cssH, cx = w*0.5, cy = h*0.52, R = Math.min(w,h)*0.34;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#0a0806'; ctx.fillRect(0,0,w,h);
+
+  // 은은한 배경 링(절제) — 흐릿한 덧칠 제거, 선명한 골드 서클
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(197,164,110,0.22)';
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.618,0,Math.PI*2); ctx.stroke();
+
+  // 5원소 노드 위치(위=목 시작, 시계방향)
+  const pts = WHEEL_EL.map((_,i)=>{ const a = -Math.PI/2 + i*(Math.PI*2/5); return { x:cx+Math.cos(a)*R, y:cy+Math.sin(a)*R }; });
+
+  // 상생(오각형 둘레: 목→화→토→금→수→목) — 부드러운 금선
+  ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(224,181,82,0.5)';
+  ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.stroke();
+  // 상극(오각별 대각: i→i+2) — 가는 붉은선
+  ctx.lineWidth = 0.7; ctx.strokeStyle = 'rgba(255,107,92,0.28)';
+  for (let i=0;i<5;i++){ const a=pts[i], b=pts[(i+2)%5]; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+
+  // 오행 노드: 분포(dist)로 크기·발광 스케일 = 데이터 시각화
+  const d = dist || {목:1,화:1,토:1,금:1,수:1};
+  const maxv = Math.max(1, ...WHEEL_EL.map(e=>d[e.k]||0));
+  WHEEL_EL.forEach((e,i)=>{
+    const p = pts[i]; const v = (d[e.k]||0); const rr = 6 + (v/maxv)*8;
+    ctx.shadowBlur = 12 + (v/maxv)*10; ctx.shadowColor = e.glow;
+    const grad = ctx.createRadialGradient(p.x,p.y,1,p.x,p.y,rr);
+    grad.addColorStop(0, e.col); grad.addColorStop(1, 'rgba(10,8,6,0)');
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // 원소 글자
+    ctx.fillStyle = e.col; ctx.font = '600 11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(e.k, p.x, p.y);
+  });
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+
+  ctx.fillStyle='#8a8072'; ctx.font='9px system-ui';
+  ctx.fillText('사주 오행 휠', 10, h-8);
+}
+
+/** 🩹 2026-08-20 Morpheus: 예전엔 자체 localStorage를 직접 건드려서 p21/p22가 쓰는
+ * 공용 p10-rail.js(window.p10Bal/Skim)와 잔액이 따로 놀았다(p20만 레일 미로드였음).
+ * index.html에 p10-rail.js 추가 후 이 함수도 레일 함수로 통일 — 이제 진짜 Trio 공유잔액. */
+function p10PaySaju(detail) {
+  if (!window.p10Bal || !window.p10Skim) { alert('크레딧 시스템 로딩 중이에요'); return false; }
+  if (window.p10Bal() < 50) { alert('크레딧이 부족해요'); return false; }
+  window.p10Skim(50);
+  return true;
+}
+
+/** DNA birth — spore into shared legion_birth_artifacts (fictional). silent=true on auto-read. */
+function birthFateSpore(opts) {
+  opts = opts || {};
+  const spore = {
+    id: 'fs' + Date.now(),
+    from: 'p20',
+    type: opts.type || 'fate-spore',
+    power: opts.power != null ? opts.power : (7 + (Math.random() * 9 | 0)),
+    ts: Date.now()
+  };
+  let arts = [];
+  try { arts = JSON.parse(localStorage.getItem('legion_birth_artifacts') || '[]'); } catch (e) { arts = []; }
+  arts.unshift(spore);
+  localStorage.setItem('legion_birth_artifacts', JSON.stringify(arts.slice(0, 24)));
+  if (window.legionTrack) try { legionTrack('birth', { from: 'p20', type: spore.type }); } catch (e) {}
+  if (!opts.silent && typeof showToast === 'function') showToast('운명의 씨앗이 생성됐어요 (가상)');
+  return spore;
+}
+window.birthFateSpore = birthFateSpore;
+window.birthArtifact = birthFateSpore;
+
+function addCrossNavP20() {
+  // 타로 앱(p21)이 이 배포에 존재하지 않아 죽은 버튼(404)이 되므로 노출하지 않음.
+  // 타로 앱 배포 시 아래 주석을 되살리면 복구됨.
+  // const nav = document.createElement('div');
+  // nav.style.marginTop='12px';
+  // nav.innerHTML = `<button onclick="window.open('../p21-tarot-app/index.html','_blank')">🔮 타로도 보기</button>`;
+  // document.body.appendChild(nav);
+}
+
+function startRealFomoTimer() {
+  const tick = () => {
+    try {
+      updateFateWindows();
+      const el = document.getElementById('fomo');
+      if (!el) return;
+      const now = new Date();
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+      const sec = Math.max(0, Math.floor((end - now) / 1000));
+      const hh = Math.floor(sec / 3600), mm = Math.floor((sec % 3600) / 60);
+      if (freeLeft <= 0) {
+        el.textContent = `무료 소진 • 리셋 ${hh}시간 ${mm}분`;
+      }
+    } catch (e) {}
+  };
+  tick();
+  setInterval(tick, 30000);
+}
+
+// === NIOBE VIRAL UPGRADE: p20/p21 "Fate Share" (Codex relic export + surprise story share) ===
+// Deficiencies fixed: no external hook, no UGC, weak K. Now 1-tap share + endowment bonus + p9/p11 cross seed.
+// Fictional + prominent shield. Full psych: endowment ("MY Relic"), FOMO story urgency, variable surprise story power.
+function fateShare(fromCodex=false) {
+  let codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+  if (!codex.length) { alert('먼저 운세를 봐서 기록을 만들어 주세요.'); return; }
+  const relic = fromCodex ? codex[0] : (JSON.parse(localStorage.getItem('readingLast')||'null') || codex[0]);
+  const duo = '사주 + 타로 운세';
+  const story = `🌌 나의 운세 기록 — ${relic.text || '운명 기록'}\nLv${relic.relicLevel||1} 기운 ${relic.power||relic.score} • x${(relic.multi||1).toFixed(1)}\n${duo}\n\n이 기록이 나를 말해줘요. 당신의 운세도 기록해 보세요.\n가상 엔터테인먼트용 · 실제 운명 조언 아님.\n\n#오늘의운세 #사주타로\n👉 ${getShareUrl()}`;
+  // UGC: canvas export as relic card (beautiful shareable visual)
+  const canvas = document.getElementById('saju-canvas') || document.createElement('canvas');
+  let dataUrl = '';
+  try { dataUrl = canvas.toDataURL('image/png'); } catch(e){}
+  // Copy story + deep link
+  navigator.clipboard.writeText(story).then(() => {
+    const bonus = 8 + Math.floor((relic.power||70)/12); // retention + endowment
+    let bal = parseFloat(localStorage.getItem('p10_balance')||'1284') + bonus;
+    localStorage.setItem('p10_balance', bal.toFixed(2));
+    // Cross virality seed to p9 live + p11 metaverse (Fate aura boost)
+    try {
+      localStorage.setItem('p20_fate_to_p9', JSON.stringify({score: relic.score||70, power: relic.power, ts:Date.now()}));
+      localStorage.setItem('p20_fate_to_p11', JSON.stringify({relicPower: relic.power, aura:'fate', ts:Date.now()}));
+    } catch(e){}
+    alert(`✅ 운세 이야기가 복사됐어요. 보너스 크레딧 +${bonus}(가상).\n\n가상 엔터테인먼트용입니다.`);
+    if (dataUrl) console.log('[share] relic card exported');
+    localStorage.setItem('niobe_k_fate', (parseInt(localStorage.getItem('niobe_k_fate')||'0')+1)+'');
+  }).catch(()=> prompt('아래 운세 이야기를 복사해 공유하세요:', story));
+  // Surprise story share trigger bonus if high multi
+  if ((relic.multi||1) > 1.3) {
+    setTimeout(()=>alert('⚡ 오늘 기운의 결이 유난히 짙어, 이 기록은 특별히 선명하게 남습니다. (가상)'), 900);
+  }
+}
+
+// =====================================================================
+// 결과 공유 = 바이럴 루프 (유저용 깔끔 버전) — Niobe/Trinity
+// 정직: 실제 사주 분석(오행 과다/부족) + 오늘 운세 relation만 사용. 가짜 수치·과장 없음.
+// navigator.share(모바일 네이티브) → 실패시 클립보드 복사 + 토스트. X 인텐트 옵션.
+// 내부 크로스 로직(p9/p11 시드·K카운트)은 유지하되 유저 노출 코드네임은 제거.
+// =====================================================================
+
+// 실제 분석에서 정직한 공유 요약 한 줄 생성 (과다·부족 오행 + 오늘 운세)
+function buildShareSummary() {
+  let elems = '', luck = '';
+  if (lastAnalysis) {
+    const A = lastAnalysis;
+    const over = A.cnt[A.strongest] >= 3 ? `${A.strongest} 과다` : `${A.strongest} 강세`;
+    const lack = A.missing.length ? `${A.missing[0]} 부족` : `${A.weakest} 약세`;
+    elems = `오행은 ${over}·${lack}`;
+  }
+  // 오늘 운세: 저장된 마지막 결과의 relation 텍스트 앞부분
+  const base = todayReadingBase();
+  if (base) luck = `오늘은 ${base.relation}의 기운`;
+  // 조합 (둘 중 있는 것만)
+  if (elems && luck) return `내 사주 ${elems}, ${luck}.`;
+  if (elems) return `내 사주 ${elems}.`;
+  if (luck) return `${luck}이 흐르는 날.`;
+  return '내 사주 팔자와 오늘의 운세를 봤어요.';
+}
+
+// 공유 텍스트: 결과 요약 + 호기심 훅 + URL + 해시태그 (친구 톤·정직)
+function buildShareText() {
+  const summary = buildShareSummary();
+  return `${summary} 너도 생년월일 넣고 봐봐 👀\n${getShareUrl()}\n#사주 #오늘의운세`;
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  requestAnimationFrame(() => t.classList.add('show'));
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// 유저용 결과 공유 버튼 핸들러
+function shareRefill(){
+  try{
+    var k='sajuShareRefill_'+todayKey();
+    if(localStorage.getItem(k)) return false;
+    freeLeft = Math.max(freeLeft, 1);
+    localStorage.setItem(k,'1');
+    updateFomo && updateFomo();
+    if(window.legionTrack) try{legionTrack('share_refill',{})}catch(e){}
+    return true;
+  }catch(e){return false;}
+}
+function shareResult() {
+  const text = buildShareText();
+  // 계측: 결과 공유 클릭 = 바이럴
+  if (window.legionTrack) window.legionTrack('share');
+  try {
+    const n = (parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0) + 1;
+    localStorage.setItem(SHARE_COUNT_KEY, String(n));
+    renderMiniDash();
+  } catch (e) {}
+  // 내부 크로스 로직 유지 (유저에 코드네임 노출 없이 조용히 시딩)
+  seedCrossOnShare();
+  if (navigator.share) {
+    navigator.share({ title: '사주 명리 · 오늘의 운세', text, url: getShareUrl() })
+      .catch(() => copyShareFallback(text));
+    return;
+  }
+  copyShareFallback(text);
+}
+
+function copyShareFallback(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast('복사됐어요 · 붙여넣기 해서 공유하세요'))
+      .catch(() => prompt('아래 텍스트를 복사해 공유하세요:', text));
+  } else {
+    prompt('아래 텍스트를 복사해 공유하세요:', text);
+  }
+}
+
+// X(트위터) 인텐트 — 옵션 버튼
+function shareToX() {
+  // 계측: X 공유 클릭 = 바이럴
+  if (window.legionTrack) window.legionTrack('share');
+  try {
+    const n = (parseInt(localStorage.getItem(SHARE_COUNT_KEY) || '0', 10) || 0) + 1;
+    localStorage.setItem(SHARE_COUNT_KEY, String(n));
+    renderMiniDash();
+  } catch (e) {}
+  seedCrossOnShare();
+  const text = buildShareText();
+  const url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+  window.open(url, '_blank', 'noopener');
+}
+
+// 내부 크로스 시딩(유저 비노출) — 기존 cross 로직을 이 지점에서만 조용히 재사용
+function seedCrossOnShare() {
+  try {
+    let codex = JSON.parse(localStorage.getItem(CODEX_KEY) || '[]');
+    const relic = (JSON.parse(localStorage.getItem('readingLast') || 'null')) || codex[0] || {};
+    localStorage.setItem('p20_fate_to_p9', JSON.stringify({ score: relic.score || 70, power: relic.power, ts: Date.now() }));
+    localStorage.setItem('p20_fate_to_p11', JSON.stringify({ relicPower: relic.power, aura: 'fate', ts: Date.now() }));
+    localStorage.setItem('niobe_k_fate', (parseInt(localStorage.getItem('niobe_k_fate') || '0') + 1) + '');
+  } catch (e) {}
+}
+window.shareResult = shareResult;
+window.shareToX = shareToX;
+
+function currentSolarTerm(now) {
+  var SP = window.SajuPro;
+  if (!SP || !SP.termJD || !SP.TERM_NAMES) return null;
+  now = now || new Date();
+  var y = now.getFullYear();
+  var jd = SP.jdFromUTC(y, now.getMonth() + 1, now.getDate(), now.getHours(), now.getMinutes(), 0);
+  var best = null, nxt = null;
+  for (var yy = y - 1; yy <= y + 1; yy++) {
+    for (var i = 0; i < SP.TERM_NAMES.length; i++) {
+      var tjd = SP.termJD(yy, i);
+      if (tjd <= jd && (!best || tjd > best.jd)) best = { name: SP.TERM_NAMES[i], jd: tjd };
+      if (tjd > jd && (!nxt || tjd < nxt.jd)) nxt = { name: SP.TERM_NAMES[i], jd: tjd };
+    }
+  }
+  return { now: best, next: nxt };
+}
+
+/** 오늘 일진+절기+영역 3칩. 생년월일 없음. 개인 명식 아님. */
+function renderTodayPeek() {
+  var meta = document.getElementById('todayPeekMeta');
+  var text = document.getElementById('todayPeekText');
+  var cat = document.getElementById('todayCatalog');
+  if (!meta && !text && !cat) return;
+  var d = new Date();
+  var dIdx = ((SAJU.jdn(d.getFullYear(), d.getMonth() + 1, d.getDate()) + 49) % 60 + 60) % 60;
+  var stem = SAJU.STEMS[dIdx % 10];
+  var branch = SAJU.BRANCHES[dIdx % 12];
+  var el = SAJU.STEM_EL[stem];
+  var hanja = (SAJU.STEM_HANJA[stem] || '') + (SAJU.BRANCH_HANJA[branch] || '');
+  var term = currentSolarTerm(d);
+  var termLine = '';
+  if (term && term.now) {
+    termLine = ' · 절기 <b>' + term.now.name + '</b>';
+    if (term.next) {
+      var days = Math.max(0, Math.ceil((term.next.jd - (window.SajuPro.jdFromUTC(d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(), 0))) ));
+      if (days <= 14) termLine += ' · 다음 ' + term.next.name + ' ' + days + '일';
+    }
+  }
+  if (meta) {
+    meta.innerHTML = '오늘 일진 <b style="color:' + (SAJU.EL_COLOR[el] || '#c5a46e') + '">' + stem + branch + '(' + hanja + ' · ' + el + ')</b>' + termLine;
+  }
+  var EL_FLOW = {
+    목: '새 가지가 뻗는 날 — 시작·기획이 수월하고, 밀어붙이기보다 키우는 쪽이 맞다.',
+    화: '불빛이 닿는 날 — 드러내고 말하는 쪽이 열리며, 과열만 피하면 된다.',
+    토: '땅을 다지는 날 — 정리·약속·기반이 이득이고, 새 판은 하루 미뤄도 된다.',
+    금: '날을 세우는 날 — 거두고 자르고 경계를 분명히 할 때 힘이 선다.',
+    수: '물을 머금는 날 — 듣고 배우며 기다리기. 서두른 결단은 흐려진다.'
+  };
+  if (text) text.textContent = EL_FLOW[el] || '오늘 일진의 결을 천천히 읽어요.';
+  var EL_CAT = {
+    목: { 재물: '심고 키우기', 관계: '자리부터 넓히기', 일: '기획·시작' },
+    화: { 재물: '알리고 드러내기', 관계: '표현이 닿음', 일: '발표·설득' },
+    토: { 재물: '정산·정리', 관계: '약속 단단히', 일: '기반 다지기' },
+    금: { 재물: '거두고 자르기', 관계: '경계 분명히', 일: '결단·마무리' },
+    수: { 재물: '흐름 읽고 기다리기', 관계: '듣고 머금기', 일: '배움·연구' }
+  };
+  var row = EL_CAT[el] || EL_CAT.토;
+  if (cat) {
+    cat.innerHTML =
+      '<div class="today-cat" role="listitem"><b>재물</b><span>' + row.재물 + '</span></div>' +
+      '<div class="today-cat" role="listitem"><b>관계</b><span>' + row.관계 + '</span></div>' +
+      '<div class="today-cat" role="listitem"><b>일</b><span>' + row.일 + '</span></div>';
+  }
+}
+
+window.onload = () => {
+  captureSajuKRef();
+  updateFomo();
+  initP21Link();
+  renderTodayPeek();
+  renderStreak();
+  renderMiniDash();
+  showCodex();
+  startRealFomoTimer();
+  addCrossNavP20();
+  // 고지는 index.html의 한국어 문구를 그대로 둔다 (영어 개발용 문구로 덮어쓰지 않음)
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  // hook mutation after first reading
+  setTimeout(() => { if (document.getElementById('readingText')) mutateSharedFate('init', 3); }, 1200);
+};
+
+
+// 3H Co-Star saju: daily return reason on boot
+(function dailyFocusSaju(){
+  try {
+    var k = 'saju_daily_focus_' + new Date().toISOString().slice(0,10);
+    if (localStorage.getItem(k)) return;
+    localStorage.setItem(k, '1');
+    var tips = ['오늘 오행 균형 한 번 체크', '친구와 궁합 카드 공유해보기', '대운 흐름 30초 훑기'];
+    var t = tips[new Date().getDate() % tips.length];
+    setTimeout(function(){
+      if (window.SajuUI && SajuUI.toast) SajuUI.toast('☀️ ' + t);
+      else if (document.body) {
+        var el = document.createElement('div');
+        el.textContent = '☀️ ' + t;
+        el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1520;color:#fbbf24;padding:10px 16px;border-radius:12px;z-index:9999;font-size:13px;border:1px solid #fbbf24;';
+        document.body.appendChild(el);
+        setTimeout(function(){ el.remove(); }, 3200);
+      }
+      if (window.legionTrack) legionTrack('daily_focus', {tip:t});
+    }, 900);
+  } catch(e) {}
+})();
+
+/* LEGION_WAVE_12_pipe_ensure */ /* pipe already present wave 12 */
+
+/* LEGION_WAVE_57_share_counter */
+document.addEventListener('click',function(ev){try{var el=ev.target;if(!el)return;var tx=(el.textContent||'')+(el.id||'');if(/share|copy/i.test(tx)||/\uacf5\uc720|\ubcf5\uc0ac/.test(tx)){localStorage.setItem('lw_p20_saju_min_share_counter',String((+(localStorage.getItem('lw_p20_saju_min_share_counter')||0))+1));}}catch(e){}},true);
